@@ -1,0 +1,27 @@
+# Deploy this backend to Render.com (https://render.com):
+# 1. Push this `backend/` folder to a GitHub repo.
+# 2. On Render: New -> Web Service -> connect repo -> root directory "backend".
+# 3. Render auto-detects this render.yaml, or set manually:
+#    Build Command: pip install -r requirements.txt
+#    Start Command: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+# 4. Add a Render PostgreSQL instance, copy its Internal Database URL into DATABASE_URL.
+# 5. Add the other env vars from .env.example as Render environment variables.
+
+services:
+  - type: web
+    name: billiards-arena-api
+    env: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+
+databases:
+  - name: billiards-arena-db
+    plan: free

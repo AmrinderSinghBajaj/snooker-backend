@@ -1,0 +1,59 @@
+import api from './client';
+
+export const authApi = {
+  login: (username, password) => api.post('/auth/login', { username, password }),
+  me: () => api.get('/auth/me'),
+};
+
+export const assetsApi = {
+  list: () => api.get('/assets'),
+  create: (data) => api.post('/assets', data),
+  archive: (id) => api.delete(`/assets/${id}`),
+  activeSessions: () => api.get('/assets/active-sessions'),
+  startGame: (assetId, playerNames) => api.post(`/assets/${assetId}/start`, { player_names: playerNames }),
+  pauseGame: (assetId) => api.post(`/assets/${assetId}/pause`),
+  resumeGame: (assetId) => api.post(`/assets/${assetId}/resume`),
+  updatePlayers: (sessionId, playerNames) =>
+    api.put(`/assets/active-sessions/${sessionId}/players`, { player_names: playerNames }),
+};
+
+export const billingApi = {
+  stop: (sessionId) => api.post(`/billing/${sessionId}/stop`),
+  split: (sessionId, payerCustomerIds, payerNames) => api.post(`/billing/${sessionId}/split`, { payer_customer_ids: payerCustomerIds, payer_names: payerNames }),
+  done: (sessionId, payerNames) => api.post(`/billing/${sessionId}/done`, { payer_names: payerNames }),
+  records: () => api.get('/billing/records'),
+  markPaid: (sessionId, paymentMethod) =>
+    api.post(`/billing/${sessionId}/paid`, { payment_method: paymentMethod }),
+  markUnpaid: (sessionId, paidAmount, pendingAmount) =>
+    api.post(`/billing/${sessionId}/unpaid`, { paid_amount: paidAmount, pending_amount: pendingAmount }),
+  detail: (sessionId) => api.get(`/billing/${sessionId}/detail`),
+  edit: (sessionId, payload) => api.put(`/billing/${sessionId}/edit`, payload),
+  createManualEntry: (payload) => api.post('/billing/manual-entry', payload),
+  remove: (sessionId) => api.delete(`/billing/${sessionId}`),
+};
+
+export const foodApi = {
+  list: () => api.get('/food/items'),
+  create: (data) => api.post('/food/items', data),
+  archive: (id) => api.delete(`/food/items/${id}`),
+  assign: (sessionId, lines, orderedBy) => api.post('/food/assign', { session_id: sessionId, lines, ordered_by: orderedBy }),
+};
+
+export const revenueApi = {
+  today: () => api.get('/revenue/today'),
+  weekly: () => api.get('/revenue/weekly'),
+  monthly: () => api.get('/revenue/monthly'),
+  drilldownDay: (targetDate) => api.get('/revenue/drilldown/day', { params: { target_date: targetDate } }),
+  drilldownWeek: (weekEnd) => api.get('/revenue/drilldown/week', { params: { week_end: weekEnd } }),
+  drilldownMonth: (year, month) => api.get('/revenue/drilldown/month', { params: { year, month } }),
+  searchDate: (targetDate) => api.get('/revenue/search/date', { params: { target_date: targetDate } }),
+  searchRange: (startDate, endDate) => api.get('/revenue/search/range', { params: { start_date: startDate, end_date: endDate } }),
+};
+
+export const customersApi = {
+  list: () => api.get('/customers'),
+};
+
+export const brandingApi = {
+  updateSettings: (data) => api.put('/branding/settings', data),
+};

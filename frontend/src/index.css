@@ -1,0 +1,353 @@
+/*
+  Design direction: a real billiards club back-office, not a generic SaaS dashboard.
+  Palette pulls from the felt table (deep green), the rail cushion (burgundy),
+  and brass fittings (warm gold) - materials an owner would recognize.
+
+  Colors:
+    --felt-900:  #0B2B22   (deepest green, page background)
+    --felt-700:  #14463A   (panel surfaces)
+    --felt-600:  #1B5C4C   (raised cards / hover)
+    --brass-500: #C9A24B   (primary accent - brass rail trim)
+    --brass-300: #E3C878   (brass highlight / active states)
+    --rail-600:  #8B2635   (burgundy - stop/danger/red accents)
+    --chalk-100: #F4F1E8   (chalk-dust off-white, primary text on dark)
+    --ink-900:   #16201C   (near-black text on light surfaces)
+
+  Type:
+    Display: "Fraunces" (serif with personality, for headings/club name - feels like
+              cue-club signage, not corporate)
+    Body/UI: "Inter" (clean, legible for dense operational data)
+    Mono:    "IBM Plex Mono" (for timers, money, serial numbers - tabular precision)
+*/
+
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
+
+:root {
+  --felt-900: #0B2B22;
+  --felt-800: #0F3A2E;
+  --felt-700: #14463A;
+  --felt-600: #1B5C4C;
+  --felt-500: #246E5A;
+
+  --brass-300: #E3C878;
+  --brass-500: #C9A24B;
+  --brass-700: #97772F;
+
+  --rail-600: #8B2635;
+  --rail-500: #A93347;
+  --rail-300: #D98A98;
+
+  --chalk-100: #F4F1E8;
+  --chalk-200: #E7E1D2;
+  --chalk-400: #B9AF98;
+
+  --ink-900: #16201C;
+  --ink-700: #3A453F;
+
+  --green-go: #2F9E63;
+  --orange-warn: #D97B2B;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  --shadow-card: 0 4px 16px rgba(11, 43, 34, 0.18);
+  --shadow-raised: 0 8px 28px rgba(11, 43, 34, 0.28);
+
+  --font-display: 'Fraunces', serif;
+  --font-body: 'Inter', -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--felt-900);
+  color: var(--chalk-100);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+input, select, textarea {
+  font-family: var(--font-body);
+}
+
+::selection {
+  background: var(--brass-500);
+  color: var(--ink-900);
+}
+
+/* Visible keyboard focus everywhere - accessibility floor */
+:focus-visible {
+  outline: 2px solid var(--brass-300);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Billing table row entrance + subtle hover lift - used by Billing.jsx */
+@keyframes rowFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes modalScaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes shimmerPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+/* Hover affordances for the Billing table - can't be done via inline style */
+.billing-row:hover {
+  background: var(--felt-600);
+}
+
+button[title="See detail"]:hover,
+button[title="Edit"]:hover {
+  background: var(--felt-600);
+  color: var(--brass-300);
+  border-color: var(--felt-500);
+}
+
+button[title="Remove entry"]:hover {
+  background: rgba(139, 38, 53, 0.18);
+  color: var(--rail-300);
+  border-color: var(--rail-600);
+}
+
+button[title="See detail"]:active,
+button[title="Edit"]:active,
+button[title="Remove entry"]:active {
+  transform: scale(0.94);
+}
+
+/* Billing "Add entry" button - subtle lift on hover, matches Apple-style micro-interaction */
+.billing-add-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(201, 162, 75, 0.35);
+}
+.billing-add-btn:active {
+  transform: translateY(0) scale(0.98);
+}
+
+/* Scrollbar tuned to the felt theme rather than default browser chrome */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--felt-800);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--felt-500);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--brass-700);
+}
+
+/* Eye icon button styling inside Login page */
+.login-eye-btn {
+  transition: color 0.2s ease, transform 0.1s ease;
+}
+.login-eye-btn:hover {
+  color: var(--chalk-200) !important;
+}
+.login-eye-btn:active {
+  transform: translateY(-50%) scale(0.92) !important;
+}
+
+/* ── Floating orb background animation ─────────────────────────────────────── */
+@keyframes floatOrb {
+  0%   { transform: translateY(0px) translateX(0px) scale(1); opacity: 0.12; }
+  33%  { transform: translateY(-28px) translateX(12px) scale(1.04); opacity: 0.18; }
+  66%  { transform: translateY(14px) translateX(-10px) scale(0.97); opacity: 0.10; }
+  100% { transform: translateY(0px) translateX(0px) scale(1); opacity: 0.12; }
+}
+
+@keyframes floatOrb2 {
+  0%   { transform: translateY(0px) translateX(0px) scale(1); opacity: 0.08; }
+  40%  { transform: translateY(22px) translateX(-18px) scale(1.06); opacity: 0.14; }
+  80%  { transform: translateY(-16px) translateX(14px) scale(0.95); opacity: 0.06; }
+  100% { transform: translateY(0px) translateX(0px) scale(1); opacity: 0.08; }
+}
+
+/* ── Active table pulse ring ────────────────────────────────────────────────── */
+@keyframes pulseRing {
+  0%   { box-shadow: 0 0 0 0 rgba(47, 158, 99, 0.6), 0 8px 28px rgba(11,43,34,0.4); }
+  50%  { box-shadow: 0 0 0 6px rgba(47, 158, 99, 0.15), 0 8px 28px rgba(11,43,34,0.4); }
+  100% { box-shadow: 0 0 0 0 rgba(47, 158, 99, 0), 0 8px 28px rgba(11,43,34,0.4); }
+}
+
+@keyframes pulseRingBrass {
+  0%   { box-shadow: 0 0 0 0 rgba(201, 162, 75, 0.5), 0 8px 28px rgba(11,43,34,0.4); }
+  50%  { box-shadow: 0 0 0 6px rgba(201, 162, 75, 0.12), 0 8px 28px rgba(11,43,34,0.4); }
+  100% { box-shadow: 0 0 0 0 rgba(201, 162, 75, 0), 0 8px 28px rgba(11,43,34,0.4); }
+}
+
+/* ── Card hover lift ────────────────────────────────────────────────────────── */
+@keyframes cardEntrance {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.table-card {
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
+  animation: cardEntrance 0.35s ease both;
+}
+
+.table-card:hover {
+  transform: translateY(-4px) scale(1.015);
+  box-shadow: 0 16px 40px rgba(11, 43, 34, 0.45);
+}
+
+.table-card.active {
+  animation: pulseRing 2.2s ease-in-out infinite;
+  border: 1.5px solid rgba(47, 158, 99, 0.5) !important;
+}
+
+.table-card.paused {
+  animation: pulseRingBrass 2.6s ease-in-out infinite;
+  border: 1.5px solid rgba(201, 162, 75, 0.45) !important;
+}
+
+/* ── Category image overlay ─────────────────────────────────────────────────── */
+.category-image-wrap {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+}
+
+.category-image-wrap img {
+  transition: transform 0.4s ease;
+}
+
+.table-card:hover .category-image-wrap img {
+  transform: scale(1.06);
+}
+
+/* ── Food card hover ────────────────────────────────────────────────────────── */
+.food-card {
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
+  animation: cardEntrance 0.35s ease both;
+}
+
+.food-card:hover {
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: 0 12px 32px rgba(11, 43, 34, 0.4);
+}
+
+/* ── Shimmer loading skeleton ───────────────────────────────────────────────── */
+@keyframes shimmerSkeleton {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--felt-700) 25%, var(--felt-600) 50%, var(--felt-700) 75%);
+  background-size: 800px 100%;
+  animation: shimmerSkeleton 1.5s infinite linear;
+  border-radius: var(--radius-sm);
+}
+
+/* ── Timer overlay on active card ──────────────────────────────────────────── */
+.timer-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(11, 43, 34, 0.55);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  backdrop-filter: blur(2px);
+}
+
+/* ── Sidebar nav hover ──────────────────────────────────────────────────────── */
+.nav-link-item:hover {
+  background: var(--felt-700) !important;
+  color: var(--brass-300) !important;
+}
+
+/* ── Background orbs container ─────────────────────────────────────────────── */
+.bg-orbs {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.bg-orbs .orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+}
+
+/* ── Customer card hover ───────────────────────────────────────────────────── */
+.customer-card {
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
+  animation: cardEntrance 0.35s ease both;
+}
+
+.customer-card:hover {
+  transform: translateY(-5px) scale(1.015);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.4);
+}
+
+/* ── Customer table row hover ──────────────────────────────────────────────── */
+.customer-row:hover {
+  background: rgba(27, 92, 76, 0.35);
+}
+
+/* circular color input swatches */
+.settings-color-picker::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+.settings-color-picker::-webkit-color-swatch {
+  border: none;
+  border-radius: 50%;
+}
+.settings-color-picker::-moz-color-swatch {
+  border: none;
+  border-radius: 50%;
+}
