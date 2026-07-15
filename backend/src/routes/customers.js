@@ -76,4 +76,21 @@ router.get('/stats', requireAuth, async (req, res) => {
   }
 });
 
+/**
+ * DELETE /customers/:id
+ * Delete a customer record by ID, scoped by clubId.
+ */
+router.delete('/:id', requireAuth, async (req, res) => {
+  try {
+    const customer = await Customer.findOneAndDelete({ _id: req.params.id, clubId: req.admin.clubId });
+    if (!customer) {
+      return res.status(404).json({ detail: 'Customer not found' });
+    }
+    return res.json({ status: 'ok', message: 'Customer deleted successfully' });
+  } catch (err) {
+    console.error('DELETE /customers/:id', err);
+    return res.status(500).json({ detail: 'Internal server error' });
+  }
+});
+
 export default router;
