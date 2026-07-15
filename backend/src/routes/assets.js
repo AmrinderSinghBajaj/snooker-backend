@@ -23,7 +23,7 @@ async function nextLabel(category, clubId) {
  */
 router.get('/', requireAuth, async (req, res) => {
   try {
-    const assets = await Asset.find({ clubId: req.admin.clubId, isArchived: false }).sort({ category: 1, createdAt: 1 });
+    const assets = await Asset.find({ clubId: req.admin.clubId, isArchived: false }).sort({ sortOrder: 1, category: 1, createdAt: 1 });
     return res.json(assets.map(serializeAsset));
   } catch (err) {
     console.error('GET /assets', err);
@@ -78,6 +78,40 @@ router.delete('/:id', requireAuth, async (req, res) => {
 });
 
 /**
+ * PUT /assets/:id
+ * Update an asset's label, hourly rate, or sort order (serial number/position).
+ */
+router.put('/:id', requireAuth, async (req, res) => {
+  try {
+    const { label, hourly_rate, sort_order } = req.body;
+    const asset = await Asset.findOne({ _id: req.params.id, clubId: req.admin.clubId });
+    if (!asset) return res.status(404).json({ detail: 'Asset not found' });
+
+    if (label !== undefined) {
+      if (!label.trim()) {
+        return res.status(422).json({ detail: 'Label cannot be empty' });
+      }
+      asset.label = label.trim();
+    }
+    if (hourly_rate !== undefined) {
+      if (hourly_rate <= 0) {
+        return res.status(422).json({ detail: 'hourly_rate must be greater than 0' });
+      }
+      asset.hourlyRate = hourly_rate;
+    }
+    if (sort_order !== undefined) {
+      asset.sortOrder = Number(sort_order);
+    }
+
+    await asset.save();
+    return res.json(serializeAsset(asset));
+  } catch (err) {
+    console.error('PUT /assets/:id', err);
+    return res.status(500).json({ detail: 'Internal server error' });
+  }
+});
+
+/**
  * GET /assets/active-sessions
  * Powers the Dashboard Table Grid.
  */
@@ -102,7 +136,7 @@ router.get('/active-sessions', requireAuth, async (req, res) => {
  */
 router.get('/public-active-sessions', resolveTenant, async (req, res) => {
   try {
-    const assets = await Asset.find({ clubId: req.club._id, isArchived: false }).sort({ category: 1, createdAt: 1 });
+    const assets = await Asset.find({ clubId: req.club._id, isArchived: false }).sort({ sortOrder: 1, category: 1, createdAt: 1 });
     const sessions = await GameSession.find({ clubId: req.club._id, status: { $in: ['running', 'paused'] } }).populate('assetId');
 
     const result = assets.map((asset) => {

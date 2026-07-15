@@ -11,6 +11,7 @@ const assetSchema = new mongoose.Schema({
   imageUrl:   { type: String, default: null },
   status:     { type: String, enum: STATUSES, default: 'idle' },
   isArchived: { type: Boolean, default: false },
+  sortOrder:  { type: Number, default: 0 },
 }, { timestamps: true });
 
 export const ASSET_CATEGORIES = CATEGORIES;

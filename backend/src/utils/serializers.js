@@ -20,6 +20,7 @@ export function serializeAsset(a) {
     hourly_rate: a.hourlyRate,
     image_url:   a.imageUrl ?? null,
     status:      a.status,
+    sort_order:  a.sortOrder ?? 0,
   };
 }
 
