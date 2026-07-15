@@ -244,7 +244,7 @@ router.post('/:sessionId/done', requireAuth, async (req, res) => {
  */
 router.get('/records', requireAuth, async (req, res) => {
   try {
-    const sessions = await GameSession.find({ clubId: req.admin.clubId, status: 'billed' }).sort({ finalizedAt: -1 });
+    const sessions = await GameSession.find({ clubId: req.admin.clubId, status: 'billed' }).sort({ serialNumber: -1 });
 
     const result = await Promise.all(sessions.map(async (s) => {
       const label = await resolveLabel(s);
