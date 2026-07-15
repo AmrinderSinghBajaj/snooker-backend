@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import api from '../api/client';
+import { customersApi } from '../api/endpoints';
 import { useTranslation } from '../utils/translations';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -67,6 +68,19 @@ export default function Customers() {
       })
       .finally(() => setLoading(false));
   }, []);
+
+  const handleDeleteCustomer = async (id, name) => {
+    if (!window.confirm(`Are you sure you want to delete player "${name}"? This will permanently remove them from the Player Book.`)) {
+      return;
+    }
+    try {
+      await customersApi.remove(id);
+      setCustomers((prev) => prev.filter((c) => c.id !== id));
+    } catch (err) {
+      console.error(err);
+      setError('Could not delete customer.');
+    }
+  };
 
   // ── Derived stats ───────────────────────────────────────────────────────────
   const totalRevenue   = useMemo(() => customers.reduce((s, c) => s + (c.total_spent ?? 0), 0), [customers]);
@@ -203,7 +217,16 @@ export default function Customers() {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={cardStyles.name}>{c.display_name}</div>
                       </div>
-                      <RankBadge rank={rank} />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <RankBadge rank={rank} />
+                        <button
+                          style={styles.cardDeleteBtn}
+                          onClick={() => handleDeleteCustomer(c.id, c.display_name)}
+                          title="Delete player"
+                        >
+                          <TrashIcon />
+                        </button>
+                      </div>
                     </div>
 
                     <div style={cardStyles.revenueBlock}>
@@ -243,6 +266,7 @@ export default function Customers() {
                     <th style={tableStyles.th}>Sessions</th>
                     <th style={tableStyles.th}>Last Visit</th>
                     <th style={tableStyles.th}>Joined</th>
+                    <th style={{ ...tableStyles.th, textAlign: 'right' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -262,6 +286,15 @@ export default function Customers() {
                         </td>
                         <td style={tableStyles.td}>{relativeTime(c.last_visit)}</td>
                         <td style={tableStyles.td}>{new Date(c.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+                        <td style={{ ...tableStyles.td, textAlign: 'right' }}>
+                          <button
+                            style={styles.deleteBtn}
+                            onClick={() => handleDeleteCustomer(c.id, c.display_name)}
+                            title="Delete player"
+                          >
+                            <TrashIcon />
+                          </button>
+                        </td>
                       </tr>
                     );
                   })}
@@ -301,10 +334,10 @@ export default function Customers() {
 // ── Styles ─────────────────────────────────────────────────────────────────────
 const styles = {
   page: { position: 'relative', paddingBottom: 48 },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28, flexWrap: 'wrap', gap: 16 },
   pageTitle: { fontFamily: 'var(--font-display)', fontSize: '2rem', color: 'var(--chalk-100)', margin: 0, letterSpacing: '-0.01em' },
   subtitle: { color: 'var(--chalk-400)', margin: '4px 0 0', fontSize: '0.92rem' },
-  statsRow: { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 28 },
+  statsRow: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16, marginBottom: 28 },
   toolbar: { display: 'flex', gap: 12, alignItems: 'center', marginBottom: 20, flexWrap: 'wrap' },
   searchWrap: { position: 'relative', flex: 1, minWidth: 200, maxWidth: 340 },
   searchIcon: { position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--chalk-400)', display: 'flex', alignItems: 'center' },
@@ -331,11 +364,41 @@ const styles = {
   pageBtn: { background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: 'var(--radius-sm)', color: 'var(--chalk-200)', padding: '8px 16px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s ease', outline: 'none' },
   pageBtnDisabled: { opacity: 0.4, cursor: 'not-allowed' },
   pageInfo: { fontSize: '0.88rem', color: 'var(--chalk-400)', fontWeight: 500 },
+  deleteBtn: {
+    background: 'rgba(239, 68, 68, 0.15)',
+    border: '1px solid rgba(239, 68, 68, 0.3)',
+    borderRadius: 'var(--radius-sm)',
+    color: '#f87171',
+    width: 32,
+    height: 32,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    transition: 'all 0.15s ease',
+    padding: 0,
+    outline: 'none',
+  },
+  cardDeleteBtn: {
+    background: 'none',
+    border: 'none',
+    color: 'var(--chalk-400)',
+    width: 28,
+    height: 28,
+    borderRadius: 'var(--radius-sm)',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    transition: 'all 0.15s ease',
+    padding: 0,
+    outline: 'none',
+  },
 };
 
 const gridStyles = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(3, 1fr)',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
   gap: 20,
 };
 
@@ -364,7 +427,7 @@ const cardStyles = {
   revenueBlock: { display: 'flex', flexDirection: 'column', gap: 4 },
   revenueLabel: { fontSize: '0.68rem', fontWeight: 600, color: 'var(--chalk-400)', textTransform: 'uppercase', letterSpacing: '0.08em' },
   revenueValue: { fontFamily: 'var(--font-mono)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--brass-300)' },
-  metaRow: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginTop: 4 },
+  metaRow: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))', gap: 12, marginTop: 4 },
   metaItem: { display: 'flex', flexDirection: 'column', gap: 4 },
   metaKey: { fontSize: '0.65rem', color: 'var(--chalk-400)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 },
   metaVal: { fontFamily: 'var(--font-mono)', fontSize: '0.85rem', fontWeight: 700, color: 'var(--chalk-100)', whiteSpace: 'nowrap' },
@@ -400,3 +463,12 @@ const tableStyles = {
   tr: { borderBottom: '1px solid rgba(255, 255, 255, 0.05)', transition: 'background 0.15s' },
   td: { padding: '14px 18px', fontSize: '0.9rem', color: 'var(--chalk-200)', verticalAlign: 'middle' },
 };
+
+function TrashIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+      <path d="M4 7h16M9 7V4.5A1.5 1.5 0 0 1 10.5 3h3A1.5 1.5 0 0 1 15 4.5V7m2 0-.7 12.1A2 2 0 0 1 14.3 21H9.7a2 2 0 0 1-2-1.9L7 7"
+        stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}

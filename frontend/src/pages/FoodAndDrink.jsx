@@ -205,7 +205,7 @@ export default function FoodAndDrink() {
 
       {error && <div style={styles.errorBanner}>{error}</div>}
 
-      <div style={styles.container}>
+      <div className="food-container" style={styles.container}>
         <div style={styles.menuPane}>
           {loading && <p style={{ color: 'var(--chalk-400)' }}>Loading…</p>}
 
@@ -269,7 +269,7 @@ export default function FoodAndDrink() {
           </div>
         </div>
 
-        <div style={styles.cartPane}>
+        <div className="food-cart-pane" style={styles.cartPane}>
           <div style={styles.sidebarCart}>
             <div style={styles.sidebarHeader}>
               <span style={{ fontSize: '1.2rem', marginRight: 8 }}>🛍️</span>
@@ -471,6 +471,8 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 24,
+    flexWrap: 'wrap',
+    gap: 16,
   },
   pageTitle: {
     fontFamily: 'var(--font-display)',

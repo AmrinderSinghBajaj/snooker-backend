@@ -171,7 +171,7 @@ export default function Dashboard() {
         {error && <div style={styles.errorBanner}>{error}</div>}
 
         {/* Operational Grid */}
-        <div style={styles.grid}>
+        <div className="dashboard-grid" style={styles.grid}>
           {assets.map((asset, idx) => {
             const session = sessionForAsset(asset.id);
             const { accent } = getCategoryConfig(asset.category);
@@ -341,6 +341,8 @@ const styles = {
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 28,
+    flexWrap: 'wrap',
+    gap: 16,
   },
   pageTitle: {
     fontFamily: 'var(--font-display)',
@@ -356,7 +358,7 @@ const styles = {
   },
   grid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(3, 1fr)',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
     gap: 24,
   },
   tableCard: {

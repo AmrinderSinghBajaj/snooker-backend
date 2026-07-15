@@ -375,7 +375,7 @@ const styles = {
   subtitle: { color: 'var(--chalk-400)', margin: '6px 0 0', fontSize: '0.92rem' },
   donutRow: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(3, 1fr)',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
     gap: 20,
     marginBottom: 28,
   },
@@ -469,7 +469,7 @@ const styles = {
   },
   searchRow: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(2, 1fr)',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
     gap: 20,
   },
   searchCard: {

@@ -78,6 +78,23 @@ export default function TableSetup() {
     }
   };
 
+  const handleUpdateSortOrder = (id, val) => {
+    setAssets((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, sort_order: val } : a))
+    );
+  };
+
+  const handleSaveSortOrder = async (id, val) => {
+    const num = parseInt(val, 10);
+    if (isNaN(num)) return;
+    try {
+      await assetsApi.update(id, { sort_order: num });
+      loadAssets();
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Could not update order.');
+    }
+  };
+
   const grouped = CATEGORIES.map((cat) => ({
     category: cat,
     items: assets.filter((a) => a.category === cat),
@@ -141,6 +158,25 @@ export default function TableSetup() {
                   <div style={styles.assetBody}>
                     <div style={styles.assetLabel}>{item.label}</div>
                     <div style={styles.assetRate}>₹{Number(item.hourly_rate).toFixed(0)} / hr</div>
+                    <div style={styles.sortOrderRow}>
+                      <span style={styles.sortOrderLabel}>Serial No:</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        style={styles.sortOrderInput}
+                        value={item.sort_order ?? ''}
+                        onChange={(e) => handleUpdateSortOrder(item.id, e.target.value)}
+                        onBlur={(e) => handleSaveSortOrder(item.id, e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.target.blur();
+                          }
+                        }}
+                        placeholder="0"
+                        title="Enter serial number to sort this table on the dashboard"
+                      />
+                    </div>
                   </div>
 
                   <button
@@ -400,5 +436,30 @@ const styles = {
     boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
     zIndex: 1000,
     animation: 'slideUp 0.3s ease',
+  },
+  sortOrderRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    borderTop: '1px solid var(--felt-600)',
+    paddingTop: 8,
+  },
+  sortOrderLabel: {
+    fontSize: '0.78rem',
+    color: 'var(--chalk-400)',
+    fontWeight: 500,
+  },
+  sortOrderInput: {
+    width: 60,
+    background: 'var(--felt-900)',
+    border: '1px solid var(--felt-600)',
+    borderRadius: 'var(--radius-sm)',
+    color: 'var(--brass-300)',
+    padding: '4px 6px',
+    fontSize: '0.85rem',
+    fontFamily: 'var(--font-mono)',
+    textAlign: 'center',
+    outline: 'none',
   },
 };

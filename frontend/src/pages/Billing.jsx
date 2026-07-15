@@ -67,11 +67,6 @@ export default function Billing() {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
-  const PAGE_SIZE = 15;
-
-  useEffect(() => {
-    setPage(1);
-  }, [activeTab, searchQuery]);
   const [detailSession, setDetailSession] = useState(null);
   const [detail, setDetail] = useState(null);
   const [unpaidSession, setUnpaidSession] = useState(null);
@@ -86,6 +81,11 @@ export default function Billing() {
   const [searchQuery, setSearchQuery] = useState('');
   const [paymentMethodPrompt, setPaymentMethodPrompt] = useState(null);
   const [outstandingDetailPlayer, setOutstandingDetailPlayer] = useState(null);
+  const PAGE_SIZE = 15;
+
+  useEffect(() => {
+    setPage(1);
+  }, [activeTab, searchQuery]);
 
   const load = () => {
     setLoading(true);
@@ -927,6 +927,8 @@ const styles = {
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     marginBottom: 22,
+    flexWrap: 'wrap',
+    gap: 16,
   },
   pageTitle: {
     fontFamily: 'var(--font-display)',
@@ -944,6 +946,7 @@ const styles = {
     gap: 2,
     marginBottom: 22,
     borderBottom: '1px solid var(--felt-600)',
+    flexWrap: 'wrap',
   },
   tabBtn: {
     padding: '12px 20px',
@@ -979,7 +982,7 @@ const styles = {
   plusIcon: { fontSize: '1.05rem', lineHeight: 1, fontWeight: 700 },
   statsRow: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(3, 1fr)',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
     gap: 14,
     marginBottom: 22,
   },

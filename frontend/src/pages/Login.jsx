@@ -62,7 +62,7 @@ export default function Login() {
   return (
     <div style={styles.page}>
       {/* Left half: club identity, always present as the "world" the panel lives in */}
-      <div style={styles.leftHalf}>
+      <div className="login-left-half" style={styles.leftHalf}>
         <Logo size={180} />
         <h1 style={styles.clubName}>{club_name}</h1>
         <p style={styles.tagline}>Floor &amp; ledger, in one place.</p>
@@ -70,6 +70,7 @@ export default function Login() {
 
       {/* Right half: login form, revealed once the 2s intro completes */}
       <div
+        className="login-right-half"
         style={{
           ...styles.rightHalf,
           opacity: introDone ? 1 : 0,
@@ -78,6 +79,10 @@ export default function Login() {
       >
         {introDone && (
           <form onSubmit={handleSubmit} style={styles.form}>
+            <div className="login-mobile-header">
+              <Logo size={56} />
+              <h1 className="login-mobile-title">{club_name}</h1>
+            </div>
             <span style={styles.eyebrow}>Club Owner Access</span>
             <h2 style={styles.formTitle}>Sign in</h2>
 

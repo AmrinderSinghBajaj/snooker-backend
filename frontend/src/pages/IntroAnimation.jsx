@@ -616,22 +616,6 @@ export default function IntroAnimation() {
           <Logo size={40} />
           <h1 style={styles.title}>{club_name}</h1>
         </div>
-        <button style={styles.skipBtn} onClick={handleSkip}>
-          Skip Intro
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            style={{ marginLeft: 6 }}
-          >
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
-        </button>
       </div>
     </div>
   );

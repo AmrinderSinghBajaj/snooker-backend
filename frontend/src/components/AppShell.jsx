@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useBranding } from '../context/BrandingContext';
@@ -27,27 +28,42 @@ export default function AppShell() {
   const { admin, logout } = useAuth();
   const { club_name } = useBranding();
   const { t } = useTranslation();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <div style={styles.shell}>
-      <header style={styles.topbar}>
+    <div className="app-shell" style={styles.shell}>
+      <header className="app-topbar" style={styles.topbar}>
         <div style={styles.brandBlock}>
           <Logo size={32} />
           <div style={styles.clubName}>{club_name}</div>
         </div>
-        <div style={styles.userBlock}>
+        <button
+          className="menu-toggle-btn"
+          onClick={() => setMenuOpen(!menuOpen)}
+          style={styles.menuToggleBtn}
+          aria-label="Toggle navigation menu"
+        >
+          {menuOpen ? '✕' : '☰'}
+        </button>
+        <div className="user-block" style={styles.userBlock}>
           <div style={styles.userName}>{admin?.full_name}</div>
           <div style={styles.userRole}>{admin?.role || t('clubOwner')}</div>
         </div>
       </header>
 
-      <div style={styles.body}>
-        <nav style={styles.sidebar}>
+      <div className="app-body" style={styles.body}>
+        <nav className={`app-sidebar ${menuOpen ? 'open' : ''}`} style={styles.sidebar}>
           {NAV_ITEMS.map((item) => (
             <NavLink
               key={item.to}
               to={item.future ? '#' : item.to}
-              onClick={(e) => item.future && e.preventDefault()}
+              onClick={(e) => {
+                if (item.future) {
+                  e.preventDefault();
+                } else {
+                  setMenuOpen(false);
+                }
+              }}
               className="nav-link-item"
               style={({ isActive }) => ({
                 ...styles.navItem,
@@ -60,12 +76,12 @@ export default function AppShell() {
             </NavLink>
           ))}
 
-          <button onClick={logout} style={styles.logoutBtn}>
+          <button onClick={() => { setMenuOpen(false); logout(); }} style={styles.logoutBtn}>
             {t('signOut')}
           </button>
         </nav>
 
-        <main style={styles.main}>
+        <main className="app-main" style={styles.main}>
           <Outlet />
         </main>
       </div>
@@ -163,6 +179,18 @@ const styles = {
     padding: '10px 14px',
     fontSize: '0.85rem',
     fontWeight: 600,
+  },
+  menuToggleBtn: {
+    display: 'none',
+    background: 'none',
+    border: 'none',
+    color: 'var(--brass-300)',
+    fontSize: '1.6rem',
+    cursor: 'pointer',
+    padding: '4px 8px',
+    alignItems: 'center',
+    justifyContent: 'center',
+    outline: 'none',
   },
   main: {
     flex: 1,

@@ -351,3 +351,123 @@ button[title="Remove entry"]:active {
   border: none;
   border-radius: 50%;
 }
+
+/* ── Mobile & Tablet Responsiveness ────────────────────────────────────────── */
+
+/* App Shell Layout */
+@media (max-width: 768px) {
+  .app-topbar {
+    padding: 12px 16px !important;
+  }
+
+  .app-topbar .user-block {
+    display: none !important;
+  }
+
+  .menu-toggle-btn {
+    display: flex !important;
+  }
+
+  .app-body {
+    flex-direction: column !important;
+  }
+
+  .app-sidebar {
+    position: fixed !important;
+    top: 58px; /* height of topbar */
+    left: -260px;
+    width: 250px;
+    height: calc(100vh - 58px);
+    z-index: 999;
+    transition: left 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.4);
+    border-right: 1px solid var(--felt-600) !important;
+  }
+
+  .app-sidebar.open {
+    left: 0 !important;
+  }
+
+  .app-main {
+    padding: 16px !important;
+    overflow-x: hidden;
+  }
+}
+
+/* Login Page Responsive Styles */
+@media (max-width: 768px) {
+  .login-left-half {
+    display: none !important;
+  }
+
+  .login-right-half {
+    flex: 1 !important;
+    padding: 32px 20px !important;
+    background: radial-gradient(circle at 50% 30%, var(--felt-700), var(--felt-900) 80%) !important;
+  }
+
+  .login-mobile-header {
+    display: flex !important;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+    text-align: center;
+  }
+
+  .login-mobile-title {
+    font-family: var(--font-display);
+    font-size: 2.2rem;
+    color: var(--chalk-100);
+    margin: 0;
+  }
+}
+
+.login-mobile-header {
+  display: none;
+}
+
+/* Food & Drink Page Panels */
+@media (max-width: 900px) {
+  .food-container {
+    flex-direction: column !important;
+    gap: 20px !important;
+  }
+
+  .food-cart-pane {
+    width: 100% !important;
+    position: static !important;
+  }
+}
+
+/* Tables and scrolling components */
+.app-main table, 
+.table-wrap, 
+table {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Revenue Chart Calendar overrides */
+@media (max-width: 600px) {
+  .month-cell {
+    padding: 6px 2px !important;
+  }
+  .month-day {
+    font-size: 0.6rem !important;
+  }
+  .month-value {
+    font-size: 0.62rem !important;
+  }
+}
+
+/* Dashboard Grid limit to max 3 columns on wide screens */
+@media (min-width: 1024px) {
+  .dashboard-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+}
+
+

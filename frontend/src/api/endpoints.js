@@ -8,6 +8,7 @@ export const authApi = {
 export const assetsApi = {
   list: () => api.get('/assets'),
   create: (data) => api.post('/assets', data),
+  update: (id, data) => api.put(`/assets/${id}`, data),
   archive: (id) => api.delete(`/assets/${id}`),
   activeSessions: () => api.get('/assets/active-sessions'),
   startGame: (assetId, playerNames) => api.post(`/assets/${assetId}/start`, { player_names: playerNames }),
@@ -52,6 +53,7 @@ export const revenueApi = {
 
 export const customersApi = {
   list: () => api.get('/customers'),
+  remove: (id) => api.delete(`/customers/${id}`),
 };
 
 export const brandingApi = {
