@@ -46,6 +46,7 @@ async function seed() {
     targetDaily: 2000,
     themePrimary: '#0b2b22', // Felt Green theme
     themeSecondary: '#c9a24b', // Brass Gold theme
+    customDomain: 'thebilliardarena.shop',
   });
 
   const club2 = await Club.create({
