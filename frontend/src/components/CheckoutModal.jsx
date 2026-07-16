@@ -12,68 +12,80 @@ import { billingApi } from '../api/endpoints';
     5. Mark Paid, or Unpaid with paid/pending amounts
 */
 export default function CheckoutModal({ session, onClose, onCompleted }) {
-  const [step, setStep] = useState('stop'); // stop -> review -> done
-  const [stopResult, setStopResult] = useState(null);
+  const [step, setStep] = useState('review'); // Start directly on review step
   const [selectedPayers, setSelectedPayers] = useState([]);
-  const [detail, setDetail] = useState(null);
-  const [showDetail, setShowDetail] = useState(false);
+  const [foodAmount, setFoodAmount] = useState(0);
+  const [foodLines, setFoodLines] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [liveBill, setLiveBill] = useState({ minutes: 0, timeCharge: 0, total: 0 });
   const [paymentChoice, setPaymentChoice] = useState(null); // 'paid' | 'unpaid'
   const [paidAmount, setPaidAmount] = useState('');
   const [pendingAmount, setPendingAmount] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [checkoutPaymentMethod, setCheckoutPaymentMethod] = useState('offline');
+  const [showDetail, setShowDetail] = useState(false);
 
-  const completedRef = useRef(false);
+  const calculateLiveBill = (sess, foodAmt) => {
+    const start = new Date(sess.start_time).getTime();
+    if (!Number.isFinite(start)) return { minutes: 0, timeCharge: 0, total: foodAmt };
+
+    const nowMs = Date.now();
+    const baseElapsed = Math.max(0, nowMs - start);
+    const pausedDuration = Number(sess.paused_duration_ms || 0);
+    const pAt = sess.paused_at ? new Date(sess.paused_at).getTime() : null;
+
+    let elapsedMs = baseElapsed - pausedDuration;
+    if (pAt && pAt > start) {
+      const currentPauseLength = Math.max(0, nowMs - pAt);
+      elapsedMs = baseElapsed - pausedDuration - currentPauseLength;
+    }
+    elapsedMs = Math.max(0, elapsedMs);
+
+    const minutes = elapsedMs / 60000;
+    const timeCharge = minutes * (sess.hourly_rate / 60);
+
+    const roundedMinutes = Math.round(minutes * 100) / 100;
+    const roundedTimeCharge = Math.round(timeCharge * 100) / 100;
+    const total = Math.round((roundedTimeCharge + foodAmt) * 100) / 100;
+
+    return {
+      minutes: roundedMinutes,
+      timeCharge: roundedTimeCharge,
+      total,
+    };
+  };
 
   useEffect(() => {
-    const handleCancelStop = () => {
-      if (stopResult && !completedRef.current) {
-        const token = localStorage.getItem('billiards_token');
-        const tenantId = sessionStorage.getItem('tenant_id');
-        const headers = {
-          'Content-Type': 'application/json',
-        };
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-        if (tenantId) headers['X-Tenant-Id'] = tenantId;
-
-        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
-        fetch(`${API_BASE_URL}/billing/${session.session_id}/cancel-stop`, {
-          method: 'POST',
-          headers,
-          keepalive: true,
-        }).catch((err) => console.error('Failed to cancel stop:', err));
+    const fetchDetail = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const res = await billingApi.detail(session.session_id);
+        setFoodAmount(res.data.food_amount || 0);
+        setFoodLines(res.data.food_lines || []);
+      } catch (err) {
+        setError('Could not load bill details.');
+      } finally {
+        setLoading(false);
       }
     };
+    fetchDetail();
+    setSelectedPayers(session.player_names.map((_, i) => i)); // default: everyone pays
+  }, [session.session_id, session.player_names]);
 
-    const handleUnload = () => {
-      handleCancelStop();
+  useEffect(() => {
+    if (loading) return;
+
+    const updateBill = () => {
+      const bill = calculateLiveBill(session, foodAmount);
+      setLiveBill(bill);
     };
 
-    window.addEventListener('beforeunload', handleUnload);
-    window.addEventListener('pagehide', handleUnload);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleUnload);
-      window.removeEventListener('pagehide', handleUnload);
-      handleCancelStop();
-    };
-  }, [stopResult, session.session_id]);
-
-  const handleStop = async () => {
-    setBusy(true);
-    setError('');
-    try {
-      const res = await billingApi.stop(session.session_id);
-      setStopResult(res.data);
-      setSelectedPayers(session.player_names.map((_, i) => i)); // default: everyone pays
-      setStep('review');
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Could not stop the game.');
-    } finally {
-      setBusy(false);
-    }
-  };
+    updateBill();
+    const interval = setInterval(updateBill, 1000);
+    return () => clearInterval(interval);
+  }, [loading, session, foodAmount]);
 
   const togglePayer = (idx) => {
     setSelectedPayers((prev) =>
@@ -81,23 +93,21 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
     );
   };
 
-  const handleViewDetail = async () => {
-    try {
-      const res = await billingApi.detail(session.session_id);
-      setDetail(res.data);
-      setShowDetail(true);
-    } catch {
-      setError('Could not load details.');
-    }
+  const handleViewDetail = () => {
+    setShowDetail(true);
   };
 
   const handleDone = async () => {
     setBusy(true);
     setError('');
     try {
+      // 1. Stop the game session to write the stopped status and final stopTime/amounts to the DB
+      await billingApi.stop(session.session_id);
+
+      // 2. Finalize the billing record and split it among selected players
       const payerNames = selectedPayers.map(idx => session.player_names[idx]);
       await billingApi.done(session.session_id, payerNames);
-      completedRef.current = true;
+
       onCompleted();
     } catch (err) {
       setError(err.response?.data?.detail || 'Could not finalize checkout.');
@@ -110,7 +120,6 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
     setBusy(true);
     try {
       await billingApi.markPaid(session.session_id, checkoutPaymentMethod);
-      completedRef.current = true;
       onCompleted();
     } catch (err) {
       setError(err.response?.data?.detail || 'Could not mark as paid.');
@@ -122,7 +131,7 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
   const handleUnpaid = async () => {
     setBusy(true);
     setError('');
-    const total = stopResult.total_amount;
+    const total = liveBill.total;
     const paid = Number(paidAmount) || 0;
     const pending = Number(pendingAmount) || 0;
     if (Math.round((paid + pending) * 100) !== Math.round(total * 100)) {
@@ -132,7 +141,6 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
     }
     try {
       await billingApi.markUnpaid(session.session_id, paid, pending);
-      completedRef.current = true;
       onCompleted();
     } catch (err) {
       setError(err.response?.data?.detail || 'Could not record unpaid balance.');
@@ -141,26 +149,36 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
     }
   };
 
-  const splitShare = stopResult && selectedPayers.length > 0
-    ? stopResult.total_amount / selectedPayers.length
+  const stopResult = {
+    minutes_played: liveBill.minutes,
+    time_amount: liveBill.timeCharge,
+    food_amount: foodAmount,
+    total_amount: liveBill.total,
+  };
+
+  const splitShare = selectedPayers.length > 0
+    ? liveBill.total / selectedPayers.length
     : 0;
+
+  if (loading) {
+    return (
+      <Modal title={`Checkout — ${session.asset_label}`} onClose={onClose} width={460}>
+        <div style={{ textAlign: 'center', padding: '30px 0' }}>
+          {error ? (
+            <div style={styles.error}>{error}</div>
+          ) : (
+            <p style={{ color: 'var(--chalk-200)', fontSize: '0.9rem', marginBottom: 0 }}>
+              Calculating live bill...
+            </p>
+          )}
+        </div>
+      </Modal>
+    );
+  }
 
   return (
     <Modal title={`Checkout — ${session.asset_label}`} onClose={onClose} width={460}>
-      {step === 'stop' && (
-        <div>
-          <p style={styles.text}>
-            Players: <strong>{session.player_names.join(', ')}</strong>
-          </p>
-          <p style={styles.text}>This pauses the clock and calculates the bill.</p>
-          {error && <div style={styles.error}>{error}</div>}
-          <button style={styles.stopBtn} onClick={handleStop} disabled={busy}>
-            {busy ? 'Stopping…' : 'Stop game & calculate bill'}
-          </button>
-        </div>
-      )}
-
-      {step === 'review' && stopResult && (
+      {step === 'review' && (
         <div>
           <div style={styles.summaryRow}>
             <span>Time played</span>
