@@ -20,7 +20,7 @@ export const assetsApi = {
 
 export const billingApi = {
   stop: (sessionId) => api.post(`/billing/${sessionId}/stop`),
-  checkoutPreview: (sessionId) => api.get(`/billing/${sessionId}/checkout-preview`),
+  cancelStop: (sessionId) => api.post(`/billing/${sessionId}/cancel-stop`),
   split: (sessionId, payerCustomerIds, payerNames) => api.post(`/billing/${sessionId}/split`, { payer_customer_ids: payerCustomerIds, payer_names: payerNames }),
   done: (sessionId, payerNames) => api.post(`/billing/${sessionId}/done`, { payer_names: payerNames }),
   records: () => api.get('/billing/records'),
