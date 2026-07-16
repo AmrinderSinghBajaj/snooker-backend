@@ -635,6 +635,7 @@ const styles = {
     justifyContent: 'center',
     cursor: 'pointer',
     transition: 'all 0.15s ease',
+    zIndex: 10,
   },
   toast: {
     position: 'fixed',
