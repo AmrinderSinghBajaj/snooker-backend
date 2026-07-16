@@ -17,6 +17,9 @@ export function AuthProvider({ children }) {
         .then((res) => {
           setAdmin(res.data);
           localStorage.setItem('billiards_admin', JSON.stringify(res.data));
+          if (res.data.subdomain) {
+            sessionStorage.setItem('tenant_id', res.data.subdomain);
+          }
         })
         .catch(() => {
           localStorage.removeItem('billiards_token');
@@ -33,6 +36,9 @@ export function AuthProvider({ children }) {
     const { access_token, ...adminInfo } = res.data;
     localStorage.setItem('billiards_token', access_token);
     localStorage.setItem('billiards_admin', JSON.stringify(adminInfo));
+    if (adminInfo.subdomain) {
+      sessionStorage.setItem('tenant_id', adminInfo.subdomain);
+    }
     setAdmin(adminInfo);
     return adminInfo;
   };

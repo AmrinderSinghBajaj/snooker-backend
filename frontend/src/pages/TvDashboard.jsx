@@ -118,7 +118,7 @@ export default function TvDashboard() {
             };
             const session = item.session;
             const { accent } = getCategoryConfig(asset.category);
-            const isActive = !!session && session.status === 'active';
+            const isActive = !!session && session.status === 'running';
             const isPaused = !!session && session.status === 'paused';
 
             return (

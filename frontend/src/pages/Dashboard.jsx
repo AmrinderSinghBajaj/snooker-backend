@@ -160,7 +160,11 @@ export default function Dashboard() {
           </div>
           <button
             style={styles.tvBtn}
-            onClick={() => window.open('/tv', '_blank', 'noopener,noreferrer')}
+            onClick={() => {
+              const tenantId = sessionStorage.getItem('tenant_id');
+              const tvUrl = tenantId ? `/tv?club=${tenantId}` : '/tv';
+              window.open(tvUrl, '_blank', 'noopener,noreferrer');
+            }}
             title="Open read-only view for TV display"
             className="tv-dashboard-btn"
           >
@@ -175,7 +179,7 @@ export default function Dashboard() {
           {assets.map((asset, idx) => {
             const session = sessionForAsset(asset.id);
             const { accent } = getCategoryConfig(asset.category);
-            const isActive = !!session && session.status === 'active';
+            const isActive = !!session && session.status === 'running';
             const isPaused = !!session && session.status === 'paused';
 
             return (

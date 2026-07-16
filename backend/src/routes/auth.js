@@ -31,6 +31,7 @@ router.post('/login', async (req, res) => {
       club_name:    user.clubId.name,
       full_name:    user.fullName,
       role:         user.role,
+      subdomain:    user.clubId.subdomain,
     });
   } catch (err) {
     console.error('POST /auth/login', err);
@@ -53,6 +54,7 @@ router.get('/me', requireAuth, async (req, res) => {
       full_name: user.fullName,
       club_name: user.clubId.name,
       role:      user.role,
+      subdomain: user.clubId.subdomain,
     });
   } catch (err) {
     console.error('GET /auth/me', err);
