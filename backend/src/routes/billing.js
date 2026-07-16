@@ -42,12 +42,16 @@ router.post('/:sessionId/stop', requireAuth, async (req, res) => {
 
     const asset = session.assetId ? await Asset.findOne({ _id: session.assetId, clubId: req.admin.clubId }) : null;
 
+    session.preStoppedStatus = session.status;
+    session.preStoppedPausedAt = session.pausedAt;
+
     session.stopTime = new Date();
-    session.pausedAt = null;
-    session.status   = 'stopped';
     const { minutes, amount } = computeTimeAmount(session, asset);
     session.timeAmount  = amount;
     session.totalAmount = Math.round((amount + (session.foodAmount ?? 0)) * 100) / 100;
+
+    session.pausedAt = null;
+    session.status   = 'stopped';
 
     if (asset) {
       asset.status = 'stopped';
@@ -64,6 +68,42 @@ router.post('/:sessionId/stop', requireAuth, async (req, res) => {
     });
   } catch (err) {
     console.error('POST /billing/:id/stop', err);
+    return res.status(500).json({ detail: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /billing/:sessionId/cancel-stop
+ */
+router.post('/:sessionId/cancel-stop', requireAuth, async (req, res) => {
+  try {
+    const session = await GameSession.findOne({ _id: req.params.sessionId, clubId: req.admin.clubId });
+    if (!session) return res.status(404).json({ detail: 'Session not found' });
+    if (session.status !== 'stopped') {
+      return res.status(400).json({ detail: 'Session is not stopped' });
+    }
+
+    const asset = session.assetId ? await Asset.findOne({ _id: session.assetId, clubId: req.admin.clubId }) : null;
+
+    // Revert status, pausedAt and clear stop-related fields
+    session.status = session.preStoppedStatus || 'running';
+    session.pausedAt = session.preStoppedPausedAt || null;
+    session.stopTime = null;
+    session.timeAmount = null;
+    session.totalAmount = session.foodAmount ?? 0;
+
+    session.preStoppedStatus = null;
+    session.preStoppedPausedAt = null;
+
+    if (asset) {
+      asset.status = 'active';
+      await asset.save();
+    }
+    await session.save();
+
+    return res.json({ ok: true, status: session.status });
+  } catch (err) {
+    console.error('POST /billing/:id/cancel-stop', err);
     return res.status(500).json({ detail: 'Internal server error' });
   }
 });

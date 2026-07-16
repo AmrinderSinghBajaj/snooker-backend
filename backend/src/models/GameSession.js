@@ -43,6 +43,9 @@ const gameSessionSchema = new mongoose.Schema({
   isManualEntry: { type: Boolean, default: false },
   wasEdited:     { type: Boolean, default: false },
   lastEditedAt:  { type: Date, default: null },
+
+  preStoppedStatus:   { type: String, default: null },
+  preStoppedPausedAt: { type: Date, default: null },
 }, { timestamps: true });
 
 // Enforce unique serial numbers scoped per club
