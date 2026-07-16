@@ -73,37 +73,30 @@ router.post('/:sessionId/stop', requireAuth, async (req, res) => {
 });
 
 /**
- * POST /billing/:sessionId/cancel-stop
+ * GET /billing/:sessionId/checkout-preview
  */
-router.post('/:sessionId/cancel-stop', requireAuth, async (req, res) => {
+router.get('/:sessionId/checkout-preview', requireAuth, async (req, res) => {
   try {
     const session = await GameSession.findOne({ _id: req.params.sessionId, clubId: req.admin.clubId });
     if (!session) return res.status(404).json({ detail: 'Session not found' });
-    if (session.status !== 'stopped') {
-      return res.status(400).json({ detail: 'Session is not stopped' });
+    if (!['running', 'paused', 'stopped'].includes(session.status)) {
+      return res.status(400).json({ detail: 'Session is not active or stopped' });
     }
 
     const asset = session.assetId ? await Asset.findOne({ _id: session.assetId, clubId: req.admin.clubId }) : null;
 
-    // Revert status, pausedAt and clear stop-related fields
-    session.status = session.preStoppedStatus || 'running';
-    session.pausedAt = session.preStoppedPausedAt || null;
-    session.stopTime = null;
-    session.timeAmount = null;
-    session.totalAmount = session.foodAmount ?? 0;
+    const { minutes, amount } = computeTimeAmount(session, asset);
+    const totalAmount = Math.round((amount + (session.foodAmount ?? 0)) * 100) / 100;
 
-    session.preStoppedStatus = null;
-    session.preStoppedPausedAt = null;
-
-    if (asset) {
-      asset.status = 'active';
-      await asset.save();
-    }
-    await session.save();
-
-    return res.json({ ok: true, status: session.status });
+    return res.json({
+      session_id:    session._id.toString(),
+      minutes_played: minutes,
+      time_amount:   amount,
+      food_amount:   session.foodAmount ?? 0,
+      total_amount:  totalAmount,
+    });
   } catch (err) {
-    console.error('POST /billing/:id/cancel-stop', err);
+    console.error('GET /billing/:id/checkout-preview', err);
     return res.status(500).json({ detail: 'Internal server error' });
   }
 });
@@ -169,6 +162,22 @@ router.post('/:sessionId/done', requireAuth, async (req, res) => {
   try {
     const session = await GameSession.findOne({ _id: req.params.sessionId, clubId: req.admin.clubId });
     if (!session) return res.status(404).json({ detail: 'Session not found' });
+
+    // Atomically stop the session if it's currently active (running/paused)
+    if (['running', 'paused'].includes(session.status)) {
+      const asset = session.assetId ? await Asset.findOne({ _id: session.assetId, clubId: req.admin.clubId }) : null;
+      session.stopTime = new Date();
+      const { minutes, amount } = computeTimeAmount(session, asset);
+      session.timeAmount  = amount;
+      session.totalAmount = Math.round((amount + (session.foodAmount ?? 0)) * 100) / 100;
+      session.pausedAt = null;
+      session.status   = 'stopped';
+      if (asset) {
+        asset.status = 'stopped';
+        await asset.save();
+      }
+    }
+
     if (session.status !== 'stopped') return res.status(400).json({ detail: 'Stop the game before finalizing' });
 
     const { payer_names } = req.body;

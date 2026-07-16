@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import Modal from './Modal';
 import { billingApi } from '../api/endpoints';
 
@@ -12,7 +12,7 @@ import { billingApi } from '../api/endpoints';
     5. Mark Paid, or Unpaid with paid/pending amounts
 */
 export default function CheckoutModal({ session, onClose, onCompleted }) {
-  const [step, setStep] = useState('stop'); // stop -> review -> done
+  const [step, setStep] = useState('review'); // Start directly on review step
   const [stopResult, setStopResult] = useState(null);
   const [selectedPayers, setSelectedPayers] = useState([]);
   const [detail, setDetail] = useState(null);
@@ -23,57 +23,24 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [checkoutPaymentMethod, setCheckoutPaymentMethod] = useState('offline');
-
-  const completedRef = useRef(false);
+  const [loadingPreview, setLoadingPreview] = useState(true);
 
   useEffect(() => {
-    const handleCancelStop = () => {
-      if (stopResult && !completedRef.current) {
-        const token = localStorage.getItem('billiards_token');
-        const tenantId = sessionStorage.getItem('tenant_id');
-        const headers = {
-          'Content-Type': 'application/json',
-        };
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-        if (tenantId) headers['X-Tenant-Id'] = tenantId;
-
-        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
-        fetch(`${API_BASE_URL}/billing/${session.session_id}/cancel-stop`, {
-          method: 'POST',
-          headers,
-          keepalive: true,
-        }).catch((err) => console.error('Failed to cancel stop:', err));
+    const fetchPreview = async () => {
+      setLoadingPreview(true);
+      setError('');
+      try {
+        const res = await billingApi.checkoutPreview(session.session_id);
+        setStopResult(res.data);
+        setSelectedPayers(session.player_names.map((_, i) => i)); // default: everyone pays
+      } catch (err) {
+        setError(err.response?.data?.detail || 'Could not calculate the bill.');
+      } finally {
+        setLoadingPreview(false);
       }
     };
-
-    const handleUnload = () => {
-      handleCancelStop();
-    };
-
-    window.addEventListener('beforeunload', handleUnload);
-    window.addEventListener('pagehide', handleUnload);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleUnload);
-      window.removeEventListener('pagehide', handleUnload);
-      handleCancelStop();
-    };
-  }, [stopResult, session.session_id]);
-
-  const handleStop = async () => {
-    setBusy(true);
-    setError('');
-    try {
-      const res = await billingApi.stop(session.session_id);
-      setStopResult(res.data);
-      setSelectedPayers(session.player_names.map((_, i) => i)); // default: everyone pays
-      setStep('review');
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Could not stop the game.');
-    } finally {
-      setBusy(false);
-    }
-  };
+    fetchPreview();
+  }, [session.session_id, session.player_names]);
 
   const togglePayer = (idx) => {
     setSelectedPayers((prev) =>
@@ -97,7 +64,6 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
     try {
       const payerNames = selectedPayers.map(idx => session.player_names[idx]);
       await billingApi.done(session.session_id, payerNames);
-      completedRef.current = true;
       onCompleted();
     } catch (err) {
       setError(err.response?.data?.detail || 'Could not finalize checkout.');
@@ -110,7 +76,6 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
     setBusy(true);
     try {
       await billingApi.markPaid(session.session_id, checkoutPaymentMethod);
-      completedRef.current = true;
       onCompleted();
     } catch (err) {
       setError(err.response?.data?.detail || 'Could not mark as paid.');
@@ -132,7 +97,6 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
     }
     try {
       await billingApi.markUnpaid(session.session_id, paid, pending);
-      completedRef.current = true;
       onCompleted();
     } catch (err) {
       setError(err.response?.data?.detail || 'Could not record unpaid balance.');
@@ -145,21 +109,24 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
     ? stopResult.total_amount / selectedPayers.length
     : 0;
 
+  if (loadingPreview) {
+    return (
+      <Modal title={`Checkout — ${session.asset_label}`} onClose={onClose} width={460}>
+        <div style={{ textAlign: 'center', padding: '30px 0' }}>
+          {error ? (
+            <div style={styles.error}>{error}</div>
+          ) : (
+            <p style={{ color: 'var(--chalk-200)', fontSize: '0.9rem', marginBottom: 0 }}>
+              Calculating live bill preview...
+            </p>
+          )}
+        </div>
+      </Modal>
+    );
+  }
+
   return (
     <Modal title={`Checkout — ${session.asset_label}`} onClose={onClose} width={460}>
-      {step === 'stop' && (
-        <div>
-          <p style={styles.text}>
-            Players: <strong>{session.player_names.join(', ')}</strong>
-          </p>
-          <p style={styles.text}>This pauses the clock and calculates the bill.</p>
-          {error && <div style={styles.error}>{error}</div>}
-          <button style={styles.stopBtn} onClick={handleStop} disabled={busy}>
-            {busy ? 'Stopping…' : 'Stop game & calculate bill'}
-          </button>
-        </div>
-      )}
-
       {step === 'review' && stopResult && (
         <div>
           <div style={styles.summaryRow}>
