@@ -5,9 +5,12 @@ const BrandingContext = createContext(null);
 
 const FALLBACK = {
   club_name: 'The Billiards Arena',
+  name: 'The Billiards Arena',
+  clubName: 'The Billiards Arena',
   owner_full_name: 'Beerbal Ji',
   owner_role_label: 'Club Owner',
   logo_url: null,
+  logoUrl: null,
   has_logo: false,
 };
 

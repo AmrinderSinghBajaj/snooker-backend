@@ -17,13 +17,17 @@ router.get('/', resolveTenant, (req, res) => {
   const club = req.club;
   const logoPath = path.join(__dirname, `../../static/logo_${club.subdomain}.png`);
   const hasLogo = existsSync(logoPath);
+  const customLogoUrl = club.logoUrl || `/branding/logo?club=${club.subdomain}`;
 
   return res.json({
     club_name:        club.name,
+    name:             club.name,
+    clubName:         club.name,
     owner_full_name:  club.ownerName,
     owner_role_label: 'Club Owner',
-    logo_url:         `/branding/logo?club=${club.subdomain}`,
-    has_logo:         hasLogo,
+    logo_url:         customLogoUrl,
+    logoUrl:          customLogoUrl,
+    has_logo:         hasLogo || !!club.logoUrl,
     theme_primary:    club.themePrimary,
     theme_secondary:  club.themeSecondary,
     language:         club.language || 'en',
