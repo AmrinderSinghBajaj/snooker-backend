@@ -58,9 +58,20 @@ async function seed() {
     themeSecondary: '#e3c878', // Warm Gold theme
   });
 
+  const club3 = await Club.create({
+    subdomain: 'bajaj',
+    name: 'Bajaj Snooker Arena',
+    ownerName: 'Amrinder Singh Bajaj',
+    targetDaily: 2000,
+    themePrimary: '#0b2b22',
+    themeSecondary: '#c9a24b',
+    logoUrl: '/static/logo_bajaj.png',
+    customDomain: 'bajajsnooker.shop'
+  });
+
   console.log('Creating Admin Users...');
   const passwordHash = await hashPassword('ChangeMe123!');
-  
+
   await AdminUser.create({
     username: 'beerbalji',
     hashedPassword: passwordHash,
@@ -74,6 +85,16 @@ async function seed() {
     hashedPassword: passwordHash,
     fullName: 'Jane Doe',
     clubId: club2._id,
+    role: 'Club Owner',
+  });
+
+  const bajajPasswordHash = await hashPassword('amrinder5397');
+
+  await AdminUser.create({
+    username: 'bajajowner',
+    hashedPassword: bajajPasswordHash,
+    fullName: 'Amrinder Singh Bajaj',
+    clubId: club3._id,
     role: 'Club Owner',
   });
 
@@ -92,6 +113,13 @@ async function seed() {
     { clubId: club2._id, category: 'Carrom', label: 'Board 1', hourlyRate: 50, status: 'idle' },
   ]);
 
+  // Club 3 Assets
+  await Asset.create([
+    { clubId: club3._id, category: 'Snooker', label: 'Table 1', hourlyRate: 200, status: 'idle' },
+    { clubId: club3._id, category: 'Pool', label: 'Table 2', hourlyRate: 150, status: 'idle' },
+    { clubId: club3._id, category: 'PlayStation', label: 'PS5 Unit 1', hourlyRate: 100, status: 'idle' },
+  ]);
+
   console.log('Seeding Customers...');
   // Club 1 Customers
   await Customer.create([
@@ -105,6 +133,12 @@ async function seed() {
     { clubId: club2._id, username: 'david_miller', displayName: 'David Miller' },
     { clubId: club2._id, username: 'alice_wong', displayName: 'Alice Wong' },
     { clubId: club2._id, username: 'aman_verma', displayName: 'Aman Verma' }, // identical name test
+  ]);
+
+  // Club 3 Customers
+  await Customer.create([
+    { clubId: club3._id, username: 'harpreet_singh', displayName: 'Harpreet Singh' },
+    { clubId: club3._id, username: 'gurpreet_singh', displayName: 'Gurpreet Singh' },
   ]);
 
   console.log('Seeding Food & Drink Menus...');
@@ -122,10 +156,18 @@ async function seed() {
     { clubId: club2._id, name: 'Coke', price: 40 },
   ]);
 
+  // Club 3 Menu
+  await FoodItem.create([
+    { clubId: club3._id, name: 'Samosa', price: 20 },
+    { clubId: club3._id, name: 'Tea', price: 15 },
+    { clubId: club3._id, name: 'Cold Drink', price: 40 },
+  ]);
+
   console.log('✓ Multi-tenant database successfully seeded.');
   console.log('Credentials:');
   console.log('  - Club 1 ("arena"): beerbalji / ChangeMe123!');
   console.log('  - Club 2 ("metro"): metroowner / ChangeMe123!');
+  console.log('  - Club 3 ("bajaj"): bajajowner / amrinder5397!');
   process.exit(0);
 }
 

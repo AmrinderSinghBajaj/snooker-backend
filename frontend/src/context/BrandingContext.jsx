@@ -63,22 +63,39 @@ export function BrandingProvider({ children }) {
   };
 
   useEffect(() => {
-    // 1. Detect and persist tenant from URL query param if present
+    // 1. Check window domain name for custom domains
+    const hostname = window.location.hostname;
+    let detectedTenant = null;
+
+    if (hostname === 'bajajsnooker.shop' || hostname === 'bajaj.localhost') {
+      detectedTenant = 'bajaj';
+    }
+
+    // 2. Detect and persist tenant from URL query param if present
     const urlParams = new URLSearchParams(window.location.search);
     const clubParam = urlParams.get('club');
     if (clubParam) {
       sessionStorage.setItem('tenant_id', clubParam);
+      detectedTenant = clubParam;
     }
 
-    const tenantId = sessionStorage.getItem('tenant_id');
+    // 3. Fall back to sessionStorage if not yet detected
+    if (!detectedTenant) {
+      detectedTenant = sessionStorage.getItem('tenant_id');
+    }
 
-    // 2. Fetch branding for the current tenant
-    api.get('/branding', { params: tenantId ? { club: tenantId } : {} })
+    // Persist resolved tenant
+    if (detectedTenant) {
+      sessionStorage.setItem('tenant_id', detectedTenant);
+    }
+
+    // 4. Fetch branding for the resolved tenant
+    api.get('/branding', { params: detectedTenant ? { club: detectedTenant } : {} })
       .then((res) => {
         const data = res.data;
         setBranding(data);
 
-        // 3. Dynamically apply custom white-labeled themes using CSS variables
+        // 5. Dynamically apply custom white-labeled themes using CSS variables
         applyThemeColors(data.theme_primary, data.theme_secondary);
       })
       .catch(() => setBranding(FALLBACK))
