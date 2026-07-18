@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { connectDB } from './db.js';
 
 import authRouter      from './routes/auth.js';
@@ -11,18 +13,39 @@ import revenueRouter   from './routes/revenue.js';
 import customersRouter from './routes/customers.js';
 import brandingRouter  from './routes/branding.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const app  = express();
 const PORT = process.env.PORT || 5000;
 
+app.use('/static', express.static(path.join(__dirname, '../static')));
+
 // ── CORS ─────────────────────────────────────────────────────────────────────
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173,http://localhost:5174,https://thebilliardarena.shop,http://thebilliardarena.shop')
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173,http://localhost:5174,https://thebilliardarena.shop,http://thebilliardarena.shop,http://bajajsnooker.shop,https://bajajsnooker.shop')
   .split(',')
   .map((o) => o.trim());
 
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (e.g. curl, mobile apps in dev)
-    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    if (!origin) return callback(null, true);
+    try {
+      const parsed = new URL(origin);
+      const hostname = parsed.hostname;
+      if (
+        hostname === 'localhost' ||
+        hostname.endsWith('.localhost') ||
+        allowedOrigins.includes(origin) ||
+        allowedOrigins.includes(origin + '/')
+      ) {
+        return callback(null, true);
+      }
+    } catch (e) {
+      // fallback to allowedOrigins list match
+    }
+
+    if (allowedOrigins.includes(origin)) return callback(null, true);
     return callback(new Error(`CORS: origin ${origin} not allowed`));
   },
   credentials: true,
