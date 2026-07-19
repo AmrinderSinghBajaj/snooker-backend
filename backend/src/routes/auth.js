@@ -2,6 +2,7 @@ import { Router } from 'express';
 import AdminUser from '../models/AdminUser.js';
 import { verifyPassword, createAccessToken } from '../utils/security.js';
 import { requireAuth } from '../middleware/auth.js';
+import { resolveTenant } from '../middleware/tenant.js';
 
 const router = Router();
 
@@ -10,7 +11,7 @@ const router = Router();
  * FRD B.1 - Username and Password login.
  * Returns JWT + club name / owner name shown in the dashboard header.
  */
-router.post('/login', async (req, res) => {
+router.post('/login', resolveTenant, async (req, res) => {
   try {
     const { username, password } = req.body;
     
@@ -20,6 +21,11 @@ router.post('/login', async (req, res) => {
 
     const user = await AdminUser.findOne({ username }).populate('clubId');
     if (!user || !(await verifyPassword(password, user.hashedPassword))) {
+      return res.status(401).json({ detail: 'Incorrect username or password' });
+    }
+
+    // Verify user belongs to the resolved tenant
+    if (user.clubId._id.toString() !== req.club._id.toString()) {
       return res.status(401).json({ detail: 'Incorrect username or password' });
     }
 
