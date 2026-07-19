@@ -11,7 +11,8 @@ export const assetsApi = {
   update: (id, data) => api.put(`/assets/${id}`, data),
   archive: (id) => api.delete(`/assets/${id}`),
   activeSessions: () => api.get('/assets/active-sessions'),
-  startGame: (assetId, playerNames) => api.post(`/assets/${assetId}/start`, { player_names: playerNames }),
+  startGame: (assetId, playerNames, startTimeIso) =>
+    api.post(`/assets/${assetId}/start`, { player_names: playerNames, start_time: startTimeIso }),
   pauseGame: (assetId) => api.post(`/assets/${assetId}/pause`),
   resumeGame: (assetId) => api.post(`/assets/${assetId}/resume`),
   updatePlayers: (sessionId, playerNames) =>

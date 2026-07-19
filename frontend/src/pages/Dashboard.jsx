@@ -86,8 +86,8 @@ export default function Dashboard() {
   const sessionForAsset = (assetId) =>
     activeSessions.find((s) => s.asset_id === assetId);
 
-  const handleStarted = async (playerNames) => {
-    await assetsApi.startGame(startModalAsset.id, playerNames);
+  const handleStarted = async (playerNames, startTimeIso) => {
+    await assetsApi.startGame(startModalAsset.id, playerNames, startTimeIso);
     setStartModalAsset(null);
     loadAll(true);
   };

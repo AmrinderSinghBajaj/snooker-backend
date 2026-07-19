@@ -9,6 +9,12 @@ export default function StartGameModal({ asset, onClose, onStarted }) {
   const [customers, setCustomers] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [startTime, setStartTime] = useState(() => {
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
+  });
 
   useEffect(() => {
     customersApi.list()
@@ -40,7 +46,21 @@ export default function StartGameModal({ asset, onClose, onStarted }) {
     setSubmitting(true);
     setError('');
     try {
-      await onStarted(cleaned);
+      const [hours, minutes] = startTime.split(':').map(Number);
+      const startDate = new Date();
+      startDate.setHours(hours, minutes, 0, 0);
+
+      const now = new Date();
+      const diffMs = startDate.getTime() - now.getTime();
+      if (diffMs > 30 * 60 * 1000) {
+        // More than 30 minutes in the future -> assume it started yesterday (cross-midnight)
+        startDate.setDate(startDate.getDate() - 1);
+      } else if (diffMs > 0) {
+        // Small future drift -> cap it to current time
+        startDate.setTime(now.getTime());
+      }
+
+      await onStarted(cleaned, startDate.toISOString());
     } catch (err) {
       setError(err.response?.data?.detail || t('couldNotStartGame'));
     } finally {
@@ -75,6 +95,17 @@ export default function StartGameModal({ asset, onClose, onStarted }) {
             + {t('addAnotherPlayer')}
           </button>
         )}
+
+        <div style={{ marginBottom: 18 }}>
+          <label style={styles.label}>{t('startTimeLabel')}</label>
+          <input
+            type="time"
+            style={{ ...styles.input, width: '100%', boxSizing: 'border-box' }}
+            value={startTime}
+            onChange={(e) => setStartTime(e.target.value)}
+            required
+          />
+        </div>
 
         <datalist id="customer-suggestions">
           {customers.map((c) => (
