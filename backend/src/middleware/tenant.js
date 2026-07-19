@@ -8,20 +8,28 @@ export async function resolveTenant(req, res, next) {
       identifier = req.query.club;
     }
 
+    // Resolve the actual host, accounting for proxies (e.g. Vercel)
+    let host = req.hostname || '';
+    const forwardedHost = req.headers['x-forwarded-host'];
+    if (forwardedHost) {
+      host = forwardedHost.split(',')[0].trim().split(':')[0];
+    }
+
+    const cleanHost = host.replace(/^www\./i, '');
+    const isIP = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(cleanHost);
+
     if (!identifier) {
-      const host = req.hostname;
       // Check if it looks like a subdomain (e.g. metro.billiards-arena.com)
-      const parts = host.split('.');
-      if (
-        parts.length > 1 &&
-        parts[0] !== 'www' &&
-        parts[0] !== 'localhost' &&
-        parts[0] !== '127' &&
-        parts[0] !== '0' &&
-        !host.includes('onrender.com') &&
-        !host.includes('railway.app')
-      ) {
-        identifier = parts[0];
+      if (cleanHost && !isIP) {
+        const parts = cleanHost.split('.');
+        if (
+          parts.length > 1 &&
+          parts[0] !== 'localhost' &&
+          !cleanHost.includes('onrender.com') &&
+          !cleanHost.includes('railway.app')
+        ) {
+          identifier = parts[0];
+        }
       }
     }
 
@@ -30,15 +38,17 @@ export async function resolveTenant(req, res, next) {
       identifier = 'arena';
     }
 
-    // First try custom domain matching via request hostname
-    const cleanHost = req.hostname ? req.hostname.replace(/^www\./i, '') : '';
+    // First try custom domain matching via resolved host
     const hostWithWww = `www.${cleanHost}`;
-    let club = await Club.findOne({
-      $or: [
-        { customDomain: cleanHost },
-        { customDomain: hostWithWww }
-      ]
-    });
+    let club = null;
+    if (cleanHost && !isIP) {
+      club = await Club.findOne({
+        $or: [
+          { customDomain: cleanHost },
+          { customDomain: hostWithWww }
+        ]
+      });
+    }
 
     // If not found, try custom domain matching via Origin/Referer headers
     if (!club) {
@@ -47,12 +57,15 @@ export async function resolveTenant(req, res, next) {
         try {
           const originHost = new URL(originHeader).hostname.replace(/^www\./i, '');
           const originHostWithWww = `www.${originHost}`;
-          club = await Club.findOne({
-            $or: [
-              { customDomain: originHost },
-              { customDomain: originHostWithWww }
-            ]
-          });
+          const isOriginIP = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(originHost);
+          if (!isOriginIP) {
+            club = await Club.findOne({
+              $or: [
+                { customDomain: originHost },
+                { customDomain: originHostWithWww }
+              ]
+            });
+          }
         } catch (e) {
           // ignore parsing errors
         }
