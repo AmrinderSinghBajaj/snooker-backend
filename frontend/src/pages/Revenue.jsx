@@ -3,6 +3,7 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'rec
 import { revenueApi } from '../api/endpoints';
 import Card from '../components/Card';
 import Modal from '../components/Modal';
+import { useTranslation } from '../utils/translations';
 
 function ProgressCircle({ value, target = 2000, color }) {
   const pct = Math.min((value / target) * 100, 100);
@@ -45,6 +46,7 @@ function ProgressCircle({ value, target = 2000, color }) {
 }
 
 export default function Revenue() {
+  const { t, lang } = useTranslation();
   const [today, setToday] = useState(null);
   const [weekly, setWeekly] = useState(null);
   const [monthly, setMonthly] = useState(null);
@@ -69,9 +71,9 @@ export default function Revenue() {
         setWeekly(w.data);
         setMonthly(m.data);
       })
-      .catch(() => setError('Could not load revenue data.'))
+      .catch(() => setError(t('errorLoading')))
       .finally(() => setLoading(false));
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     load();
@@ -83,7 +85,7 @@ export default function Revenue() {
       const res = await revenueApi.drilldownDay(todayStr);
       setDayDrill(res.data);
     } catch {
-      setError('Could not fetch drilldown data.');
+      setError(t('couldNotFetchDrilldown'));
     }
   };
 
@@ -93,7 +95,7 @@ export default function Revenue() {
       const res = await revenueApi.drilldownWeek(todayStr);
       setWeekDrill(res.data);
     } catch {
-      setError('Could not fetch drilldown data.');
+      setError(t('couldNotFetchDrilldown'));
     }
   };
 
@@ -103,7 +105,7 @@ export default function Revenue() {
       const res = await revenueApi.drilldownMonth(now.getFullYear(), now.getMonth() + 1);
       setMonthDrill(res.data);
     } catch {
-      setError('Could not fetch drilldown data.');
+      setError(t('couldNotFetchDrilldown'));
     }
   };
 
@@ -113,7 +115,7 @@ export default function Revenue() {
       const res = await revenueApi.searchDate(searchDate);
       setSearchResult(res.data);
     } catch {
-      setError('Search query failed.');
+      setError(t('searchQueryFailed'));
     }
   };
 
@@ -123,14 +125,14 @@ export default function Revenue() {
       const res = await revenueApi.searchRange(rangeStart, rangeEnd);
       setRangeResult(res.data);
     } catch {
-      setError('Range query failed.');
+      setError(t('rangeQueryFailed'));
     }
   };
 
   if (loading) {
     return (
       <div style={styles.page}>
-        <h1 style={styles.pageTitle}>Revenue &amp; Analytics</h1>
+        <h1 style={styles.pageTitle}>{t('revenueAnalytics')}</h1>
         <div style={styles.donutRow}>
           {[1, 2, 3].map((n) => (
             <div key={n} className="skeleton" style={{ height: 260, borderRadius: 'var(--radius-lg)' }} />
@@ -159,8 +161,8 @@ export default function Revenue() {
   return (
     <div style={styles.page}>
       <div style={styles.header}>
-        <h1 style={styles.pageTitle}>Revenue &amp; Analytics</h1>
-        <p style={styles.subtitle}>Track club earnings, check detailed daily/weekly/monthly breakdowns, and query dates.</p>
+        <h1 style={styles.pageTitle}>{t('revenueAnalytics')}</h1>
+        <p style={styles.subtitle}>{t('trackClubEarnings')}</p>
       </div>
 
       {error && <div style={styles.errorBanner}>{error}</div>}
@@ -168,15 +170,15 @@ export default function Revenue() {
       <div style={styles.donutRow}>
         {/* Today Card */}
         <Card style={styles.donutCard} onClick={openDayDrilldown}>
-          <h3 style={styles.donutTitle}>Today</h3>
+          <h3 style={styles.donutTitle}>{t('today')}</h3>
           <ProgressCircle value={today?.total || 0} target={today?.threshold || 2000} color={todayColor} />
           <div style={{ ...styles.donutValue, color: todayColor }}>₹{(today?.total || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
-          <div style={styles.donutHint}>Click for today's transactions</div>
+          <div style={styles.donutHint}>{t('clickForTodayTx')}</div>
         </Card>
 
         {/* Weekly Area Card */}
         <Card style={styles.donutCard} onClick={openWeekDrilldown}>
-          <h3 style={styles.donutTitle}>This Week</h3>
+          <h3 style={styles.donutTitle}>{t('thisWeek')}</h3>
           <div style={styles.chartWrapper}>
             <ResponsiveContainer width="100%" height={140}>
               <AreaChart data={weeklyChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -206,15 +208,15 @@ export default function Revenue() {
             </ResponsiveContainer>
           </div>
           <div style={styles.donutValue}>₹{(weekly?.total || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
-          <div style={styles.donutHint}>Click for daily breakdown</div>
+          <div style={styles.donutHint}>{t('clickForDailyBreakdown')}</div>
         </Card>
 
         {/* Monthly Card */}
         <Card style={styles.donutCard} onClick={openMonthDrilldown}>
-          <h3 style={styles.donutTitle}>{monthly?.month_label || 'This Month'}</h3>
+          <h3 style={styles.donutTitle}>{monthly?.month_label || t('thisMonth')}</h3>
           <div style={styles.monthGaugeWrapper}>
             <div style={styles.monthProgressHeader}>
-              <span style={styles.monthProgressLabel}>Monthly Target</span>
+              <span style={styles.monthProgressLabel}>{t('monthlyTarget')}</span>
               <span style={styles.monthProgressValue}>{Math.round(pctMonth)}% (₹50K)</span>
             </div>
             <div style={styles.monthProgressBarOuter}>
@@ -222,22 +224,22 @@ export default function Revenue() {
             </div>
           </div>
           <div style={{ ...styles.donutValue, color: 'var(--brass-300)', marginTop: 8 }}>₹{(monthly?.total || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
-          <div style={styles.donutHint}>Click for daily calendar breakdown</div>
+          <div style={styles.donutHint}>{t('clickForCalendarBreakdown')}</div>
         </Card>
       </div>
 
       <div style={styles.searchRow}>
         {/* Search by Date */}
         <Card style={styles.searchCard}>
-          <h3 style={styles.searchTitle}>Search by date</h3>
+          <h3 style={styles.searchTitle}>{t('searchByDate')}</h3>
           <div style={styles.searchForm}>
             <input type="date" style={styles.input} value={searchDate} onChange={(e) => setSearchDate(e.target.value)} />
-            <button style={styles.searchBtn} onClick={handleDateSearch}>Search Date</button>
+            <button style={styles.searchBtn} onClick={handleDateSearch}>{t('searchDate')}</button>
           </div>
           {searchResult && (
             <div style={styles.resultBox}>
               {searchResult.transactions.length === 0 ? (
-                <p style={styles.resultEmpty}>No transactions on this date.</p>
+                <p style={styles.resultEmpty}>{t('noTransactionsOnDate')}</p>
               ) : (
                 <div style={styles.transactionList}>
                   {searchResult.transactions.map((t, i) => (
@@ -262,23 +264,23 @@ export default function Revenue() {
 
         {/* Search by Range */}
         <Card style={styles.searchCard}>
-          <h3 style={styles.searchTitle}>Search by range</h3>
+          <h3 style={styles.searchTitle}>{t('searchByDateRange')}</h3>
           <div style={styles.searchForm}>
             <div style={styles.rangeRow}>
               <input type="date" style={styles.inputHalf} value={rangeStart} onChange={(e) => setRangeStart(e.target.value)} />
               <input type="date" style={styles.inputHalf} value={rangeEnd} onChange={(e) => setRangeEnd(e.target.value)} />
             </div>
-            <button style={styles.searchBtn} onClick={handleRangeSearch}>Search Range</button>
+            <button style={styles.searchBtn} onClick={handleRangeSearch}>{t('searchRange')}</button>
           </div>
           {rangeResult && (
             <div style={styles.resultBox}>
               <div style={styles.rangeTotalRow}>
-                <span style={styles.rangeTotalLabel}>Total Earnings</span>
+                <span style={styles.rangeTotalLabel}>{t('totalRevenue')}</span>
                 <span style={styles.rangeTotalValue}>₹{rangeResult.total_earnings.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
               {rangeResult.due_bills.length > 0 && (
                 <div style={styles.dueSection}>
-                  <div style={styles.dueTitle}>Outstanding Bills:</div>
+                  <div style={styles.dueTitle}>{t('outstandingTab')}:</div>
                   <div style={styles.dueList}>
                     {rangeResult.due_bills.map((b, i) => (
                       <div key={i} style={styles.transactionLine}>
@@ -297,9 +299,9 @@ export default function Revenue() {
 
       {/* Drilldown Modals */}
       {dayDrill && (
-        <Modal title={`Transactions — ${dayDrill.date}`} onClose={() => setDayDrill(null)}>
+        <Modal title={`${t('todaysTransactions')} — ${dayDrill.date}`} onClose={() => setDayDrill(null)}>
           {dayDrill.transactions.length === 0 ? (
-            <p style={{ color: 'var(--chalk-400)' }}>No transactions yet today.</p>
+            <p style={{ color: 'var(--chalk-400)' }}>{lang === 'hi' ? 'आज कोई लेनदेन नहीं हुआ।' : lang === 'pb' ? 'ਅੱਜ ਕੋਈ ਲੈਣ-ਦੇਣ ਨਹੀਂ ਹੋਇਆ।' : 'No transactions yet today.'}</p>
           ) : (
             <div style={styles.modalTxList}>
               {dayDrill.transactions.map((t, i) => (
@@ -309,7 +311,7 @@ export default function Revenue() {
                     <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700 }}>₹{t.total_amount.toFixed(2)}</span>
                   </div>
                   <div style={{ fontSize: '0.8rem', color: 'var(--chalk-400)' }}>
-                    {t.player_names.join(', ')} • {t.time_played_minutes} mins played
+                    {t.player_names.join(', ')} • {t.time_played_minutes} {lang === 'hi' ? 'मिनट खेले' : lang === 'pb' ? 'ਮਿੰਟ ਖੇਡੇ' : 'mins played'}
                     {t.payment_method && (
                       <span style={{ marginLeft: 6, color: t.payment_method === 'online' ? '#818CF8' : 'var(--brass-300)', fontWeight: 600, textTransform: 'capitalize' }}>
                         • {t.payment_method}
@@ -324,7 +326,7 @@ export default function Revenue() {
       )}
 
       {weekDrill && (
-        <Modal title={`Week: ${weekDrill.start_date} – ${weekDrill.end_date}`} onClose={() => setWeekDrill(null)}>
+        <Modal title={`${t('thisWeek')}: ${weekDrill.start_date} – ${weekDrill.end_date}`} onClose={() => setWeekDrill(null)}>
           <div style={styles.modalTxList}>
             {weekDrill.daily_totals.map((d, i) => (
               <div key={i} style={{ ...styles.modalTxLine, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -340,7 +342,7 @@ export default function Revenue() {
       )}
 
       {monthDrill && (
-        <Modal title={`Daily Breakdown — ${monthDrill.month_label}`} onClose={() => setMonthDrill(null)} width={540}>
+        <Modal title={`${lang === 'hi' ? 'दैनिक कैलेंडर विवरण' : lang === 'pb' ? 'ਰੋਜ਼ਾਨਾ ਕੈਲੰਡਰ ਵੇਰਵਾ' : 'Daily Breakdown'} — ${monthDrill.month_label}`} onClose={() => setMonthDrill(null)} width={540}>
           <div style={styles.monthGrid}>
             {monthDrill.daily_totals.map((d, i) => {
               const hasEarning = d.value > 0;

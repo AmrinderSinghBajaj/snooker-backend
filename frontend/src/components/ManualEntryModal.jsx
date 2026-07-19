@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import Modal from './Modal';
 import { billingApi, customersApi } from '../api/endpoints';
+import { useTranslation } from '../utils/translations';
 
 /*
   For play that never went through the normal Start/Stop flow - a missed
@@ -8,6 +9,7 @@ import { billingApi, customersApi } from '../api/endpoints';
   Mirrors a real session's shape so it reads identically in the table once saved.
 */
 export default function ManualEntryModal({ onClose, onSaved }) {
+  const { t } = useTranslation();
   const now = new Date();
   const defaultStart = new Date(now.getTime() - 30 * 60000); // 30 min ago, sensible default
 
@@ -62,26 +64,26 @@ export default function ManualEntryModal({ onClose, onSaved }) {
     setError('');
     const names = playerNamesText.split(',').map((n) => n.trim()).filter(Boolean);
     if (names.length === 0) {
-      setError('Enter at least one player name.');
+      setError(t('enterAtLeastOnePlayer'));
       return;
     }
     if (!assetLabel.trim()) {
-      setError('Enter a table or label for this entry, e.g. "Table 2" or "Walk-in".');
+      setError(t('enterTableLabel'));
       return;
     }
     if (new Date(stopTime) <= new Date(startTime)) {
-      setError('End time must be after start time.');
+      setError(t('endTimeMustBeAfterStart'));
       return;
     }
     const total = Number(totalAmount);
     if (!total || total <= 0) {
-      setError('Enter a total amount greater than 0.');
+      setError(t('enterTotalGreaterThanZero'));
       return;
     }
     const paid = Number(paidAmount);
     const pending = Number(pendingAmount);
     if (Math.round((paid + pending) * 100) !== Math.round(total * 100)) {
-      setError(`Paid + Pending must equal the total (₹${total.toFixed(2)}).`);
+      setError(`${t('paidAmountMustEqualTotal')} (₹${total.toFixed(2)}).`);
       return;
     }
 
@@ -101,40 +103,40 @@ export default function ManualEntryModal({ onClose, onSaved }) {
       });
       onSaved();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Could not save this entry.');
+      setError(err.response?.data?.detail || t('couldNotSave'));
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <Modal title="Add entry manually" onClose={onClose} width={480}>
+    <Modal title={t('addManualEntryTitle')} onClose={onClose} width={480}>
       <div style={styles.form}>
         <p style={styles.hint}>
-          For play that wasn't tracked on the dashboard — a missed entry, or a session settled outside the normal flow.
+          {t('addManual')}
         </p>
 
-        <Field label="Table / label">
+        <Field label={t('tableOrLabel')}>
           <input
             style={styles.input}
             value={assetLabel}
             onChange={(e) => setAssetLabel(e.target.value)}
-            placeholder="e.g. Table 2, or Walk-in"
+            placeholder={t('tableOrLabelPlaceholder')}
           />
         </Field>
 
-        <Field label="Player name(s)">
+        <Field label={t('playerNamesLabel')}>
           <input
             style={styles.input}
             value={playerNamesText}
             onChange={(e) => setPlayerNamesText(e.target.value)}
-            placeholder="Comma-separated, e.g. Raj, Aman"
+            placeholder={t('playerNamesPlaceholder')}
             list="customer-suggestions"
           />
         </Field>
 
         <div style={styles.row2}>
-          <Field label="Start time">
+          <Field label={t('startTimeLabel')}>
             <input
               style={styles.input}
               type="datetime-local"
@@ -142,7 +144,7 @@ export default function ManualEntryModal({ onClose, onSaved }) {
               onChange={(e) => setStartTime(e.target.value)}
             />
           </Field>
-          <Field label="End time">
+          <Field label={t('stopTimeLabel')}>
             <input
               style={styles.input}
               type="datetime-local"
@@ -153,7 +155,7 @@ export default function ManualEntryModal({ onClose, onSaved }) {
         </div>
 
         <div style={styles.row2}>
-          <Field label="Food & drink (₹)">
+          <Field label={t('foodAmountLabel')}>
             <input
               style={styles.input}
               type="number"
@@ -161,7 +163,7 @@ export default function ManualEntryModal({ onClose, onSaved }) {
               onChange={(e) => setFoodAmount(e.target.value)}
             />
           </Field>
-          <Field label="Total amount (₹)">
+          <Field label={t('totalAmountLabel')}>
             <input
               style={styles.input}
               type="number"
@@ -172,41 +174,41 @@ export default function ManualEntryModal({ onClose, onSaved }) {
           </Field>
         </div>
 
-        <Field label="Payment status">
+        <Field label={t('paymentStatusLabel')}>
           <div style={styles.segmentRow}>
             <button
               type="button"
               style={{ ...styles.segmentBtn, ...(paymentStatus === 'paid' ? styles.segmentActivePaid : {}) }}
               onClick={() => handlePaymentChoice('paid')}
             >
-              Paid
+              {t('paid')}
             </button>
             <button
               type="button"
               style={{ ...styles.segmentBtn, ...(paymentStatus === 'unpaid' ? styles.segmentActiveUnpaid : {}) }}
               onClick={() => handlePaymentChoice('unpaid')}
             >
-              Unpaid
+              {t('unpaid')}
             </button>
           </div>
         </Field>
 
         {paymentStatus === 'paid' && (
-          <Field label="Payment method">
+          <Field label={t('paymentMethodLabel')}>
             <div style={styles.segmentRow}>
               <button
                 type="button"
                 style={{ ...styles.segmentBtn, ...(paymentMethod === 'online' ? styles.segmentActivePaid : {}) }}
                 onClick={() => setPaymentMethod('online')}
               >
-                📱 Online
+                📱 {t('online')}
               </button>
               <button
                 type="button"
                 style={{ ...styles.segmentBtn, ...(paymentMethod === 'offline' ? styles.segmentActivePaid : {}) }}
                 onClick={() => setPaymentMethod('offline')}
               >
-                💵 Offline
+                💵 {t('offline')}
               </button>
             </div>
           </Field>
@@ -214,7 +216,7 @@ export default function ManualEntryModal({ onClose, onSaved }) {
 
         {paymentStatus === 'unpaid' && (
           <div style={styles.row2}>
-            <Field label="Paid amount (₹)">
+            <Field label={t('paidAmountLabelEdit')}>
               <input
                 style={styles.input}
                 type="number"
@@ -222,7 +224,7 @@ export default function ManualEntryModal({ onClose, onSaved }) {
                 onChange={(e) => setPaidAmount(e.target.value)}
               />
             </Field>
-            <Field label="Pending amount (₹)">
+            <Field label={t('pendingAmountLabelEdit')}>
               <input
                 style={styles.input}
                 type="number"
@@ -242,7 +244,7 @@ export default function ManualEntryModal({ onClose, onSaved }) {
         </datalist>
 
         <button style={styles.saveBtn} onClick={handleSave} disabled={saving}>
-          {saving ? 'Adding…' : 'Add entry'}
+          {saving ? t('savingEllipsis') : t('addToBilling')}
         </button>
       </div>
     </Modal>

@@ -18,8 +18,11 @@ const __dirname = path.dirname(__filename);
 
 const app  = express();
 const PORT = process.env.PORT || 5000;
-
-app.use('/static', express.static(path.join(__dirname, '../static')));
+app.use('/static', express.static(path.join(__dirname, '../static'), {
+  setHeaders: (res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+}));
 
 // ── CORS ─────────────────────────────────────────────────────────────────────
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173,http://localhost:5174,https://thebilliardarena.shop,http://thebilliardarena.shop,http://bajajsnooker.shop,https://bajajsnooker.shop')

@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import Modal from './Modal';
 import { assetsApi, customersApi } from '../api/endpoints';
+import { useTranslation } from '../utils/translations';
 
 export default function EditPlayersModal({ session, onClose, onUpdated }) {
+  const { t } = useTranslation();
   const [names, setNames] = useState(session.player_names || ['']);
   const [customers, setCustomers] = useState([]);
   const [submitting, setSubmitting] = useState(false);
@@ -32,7 +34,7 @@ export default function EditPlayersModal({ session, onClose, onUpdated }) {
     e.preventDefault();
     const cleaned = names.map((n) => n.trim()).filter(Boolean);
     if (cleaned.length === 0) {
-      setError('Enter at least one player name.');
+      setError(t('enterAtLeastOnePlayer'));
       return;
     }
     setSubmitting(true);
@@ -41,21 +43,21 @@ export default function EditPlayersModal({ session, onClose, onUpdated }) {
       await assetsApi.updatePlayers(session.session_id, cleaned);
       onUpdated();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Could not update player names.');
+      setError(err.response?.data?.detail || t('couldNotUpdatePlayers'));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Modal title={`Edit players on ${session.asset_label}`} onClose={onClose}>
+    <Modal title={`${t('editPlayersOn')} ${session.asset_label}`} onClose={onClose}>
       <form onSubmit={handleSubmit}>
-        <label style={styles.label}>Player names (1-4)</label>
+        <label style={styles.label}>{t('playerNames')}</label>
         {names.map((name, i) => (
           <div key={i} style={styles.nameRow}>
             <input
               style={styles.input}
-              placeholder={`Player ${i + 1}`}
+              placeholder={`${t('playerPlaceholder')} ${i + 1}`}
               value={name}
               onChange={(e) => updateName(i, e.target.value)}
               autoFocus={i === 0}
@@ -71,7 +73,7 @@ export default function EditPlayersModal({ session, onClose, onUpdated }) {
 
         {names.length < 4 && (
           <button type="button" onClick={addNameField} style={styles.addNameBtn}>
-            + Add another player
+            + {t('addAnotherPlayer')}
           </button>
         )}
 
@@ -84,7 +86,7 @@ export default function EditPlayersModal({ session, onClose, onUpdated }) {
         {error && <div style={styles.error}>{error}</div>}
 
         <button type="submit" style={styles.saveBtn} disabled={submitting}>
-          {submitting ? 'Saving…' : 'Save Changes'}
+          {submitting ? t('savingEllipsis') : t('saveChanges')}
         </button>
       </form>
     </Modal>

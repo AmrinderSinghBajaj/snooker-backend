@@ -7,16 +7,16 @@ import { useTranslation } from '../utils/translations';
 const fmt = (n) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n ?? 0);
 
-const relativeTime = (date) => {
+const relativeTime = (date, lang) => {
   if (!date) return '—';
   const diff = Date.now() - new Date(date).getTime();
   const days = Math.floor(diff / 86400000);
-  if (days === 0) return 'Today';
-  if (days === 1) return 'Yesterday';
-  if (days < 7) return `${days}d ago`;
-  if (days < 30) return `${Math.floor(days / 7)}w ago`;
-  if (days < 365) return `${Math.floor(days / 30)}mo ago`;
-  return `${Math.floor(days / 365)}y ago`;
+  if (days === 0) return lang === 'hi' ? 'आज' : lang === 'pb' ? 'ਅੱਜ' : 'Today';
+  if (days === 1) return lang === 'hi' ? 'कल' : lang === 'pb' ? 'ਕੱਲ੍ਹ' : 'Yesterday';
+  if (days < 7) return `${days}${lang === 'hi' ? ' दिन पहले' : lang === 'pb' ? ' ਦਿਨ ਪਹਿਲਾਂ' : 'd ago'}`;
+  if (days < 30) return `${Math.floor(days / 7)}${lang === 'hi' ? ' सप्ताह पहले' : lang === 'pb' ? ' ਹਫ਼ਤੇ ਪਹਿਲਾਂ' : 'w ago'}`;
+  if (days < 365) return `${Math.floor(days / 30)}${lang === 'hi' ? ' महीने पहले' : lang === 'pb' ? ' ਮਹੀਨੇ ਪਹਿਲਾਂ' : 'mo ago'}`;
+  return `${Math.floor(days / 365)}${lang === 'hi' ? ' साल पहले' : lang === 'pb' ? ' ਸਾਲ ਪਹਿਲਾਂ' : 'y ago'}`;
 };
 
 // ── Rank Badge ────────────────────────────────────────────────────────────────
@@ -46,7 +46,7 @@ function StatCard({ label, value, sub, accent }) {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function Customers() {
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState('');
@@ -64,13 +64,14 @@ export default function Customers() {
     api.get('/customers/stats')
       .then((r) => setCustomers(r.data))
       .catch(() => {
-        setError('Could not load customer data.');
+        setError(lang === 'hi' ? 'ग्राहक डेटा लोड नहीं किया जा सका।' : lang === 'pb' ? 'ਗਾਹਕ ਡੇਟਾ ਲੋਡ ਨਹੀਂ ਕੀਤਾ ਜਾ ਸਕਿਆ।' : 'Could not load customer data.');
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [lang]);
 
   const handleDeleteCustomer = async (id, name) => {
-    if (!window.confirm(`Are you sure you want to delete player "${name}"? This will permanently remove them from the Player Book.`)) {
+    const confirmMsg = lang === 'hi' ? `क्या आप वाकई खिलाड़ी "${name}" को हटाना चाहते हैं? यह उन्हें खिलाड़ी पुस्तक से स्थायी रूप से हटा देगा।` : lang === 'pb' ? `ਕੀ ਤੁਸੀਂ ਯਕੀਨਨ ਖਿਡਾਰੀ "${name}" ਨੂੰ ਹਟਾਉਣਾ ਚਾਹੁੰਦੇ ਹੋ? ਇਹ ਉਹਨਾਂ ਨੂੰ ਖਿਡਾਰੀ ਪੁਸਤਕ ਤੋਂ ਪੱਕੇ ਤੌਰ 'ਤੇ ਹਟਾ ਦੇਵੇਗਾ।` : `Are you sure you want to delete player "${name}"? This will permanently remove them from the Player Book.`;
+    if (!window.confirm(confirmMsg)) {
       return;
     }
     try {
@@ -78,7 +79,7 @@ export default function Customers() {
       setCustomers((prev) => prev.filter((c) => c.id !== id));
     } catch (err) {
       console.error(err);
-      setError('Could not delete customer.');
+      setError(lang === 'hi' ? 'ग्राहक को हटाया नहीं जा सका।' : lang === 'pb' ? 'ਗਾਹਕ ਨੂੰ ਹਟਾਇਆ ਨਹੀਂ ਜਾ ਸਕਿਆ।' : 'Could not delete customer.');
     }
   };
 
@@ -112,7 +113,7 @@ export default function Customers() {
   if (loading) {
     return (
       <div style={styles.page}>
-        <h1 style={styles.pageTitle}>Player Book</h1>
+        <h1 style={styles.pageTitle}>{t('playerBook')}</h1>
         <div style={styles.statsRow}>
           {[1,2,3].map((n) => <div key={n} className="skeleton" style={{ height: 90, borderRadius: 'var(--radius-md)' }} />)}
         </div>
@@ -128,8 +129,8 @@ export default function Customers() {
       {/* ── Header ── */}
       <div style={styles.header}>
         <div>
-          <h1 style={styles.pageTitle}>Player Book</h1>
-          <p style={styles.subtitle}>Lifetime spend & activity for every player at the club</p>
+          <h1 style={styles.pageTitle}>{t('playerBook')}</h1>
+          <p style={styles.subtitle}>{lang === 'hi' ? 'क्लब के प्रत्येक खिलाड़ी के लिए जीवनकाल का खर्च और गतिविधि' : lang === 'pb' ? 'ਕਲੱਬ ਦੇ ਹਰੇਕ ਖਿਡਾਰੀ ਲਈ ਜੀਵਨ ਭਰ ਦਾ ਖਰਚਾ ਅਤੇ ਗਤੀਵਿਧੀ' : 'Lifetime spend & activity for every player at the club'}</p>
         </div>
       </div>
 
@@ -137,17 +138,17 @@ export default function Customers() {
 
       {/* ── Summary Stats ── */}
       <div style={styles.statsRow}>
-        <StatCard label="Total Players"   value={customers.length}       sub="on record"          accent="var(--chalk-100)" />
-        <StatCard label="Total Revenue"   value={fmt(totalRevenue)}      sub="lifetime across all" accent="var(--brass-300)" />
-        <StatCard label="Total Sessions"  value={totalSessions}          sub="games played"        accent="#4ade80" />
+        <StatCard label={lang === 'hi' ? 'कुल खिलाड़ी' : lang === 'pb' ? 'ਕੁੱਲ ਖਿਡਾਰੀ' : 'Total Players'}   value={customers.length}       sub={lang === 'hi' ? 'रिकॉर्ड में' : lang === 'pb' ? 'ਰਿਕਾਰਡ ਵਿੱਚ' : 'on record'}          accent="var(--chalk-100)" />
+        <StatCard label={t('totalRevenue')}   value={fmt(totalRevenue)}      sub={lang === 'hi' ? 'कुल जीवनकाल खर्च' : lang === 'pb' ? 'ਕੁੱਲ ਜੀਵਨ ਭਰ ਖਰਚਾ' : 'lifetime across all'} accent="var(--brass-300)" />
+        <StatCard label={lang === 'hi' ? 'कुल सत्र' : lang === 'pb' ? 'ਕੁੱਲ ਸੈਸ਼ਨ' : 'Total Sessions'}  value={totalSessions}          sub={lang === 'hi' ? 'खेले गए खेल' : lang === 'pb' ? 'ਖੇਡੇ ਗਏ ਯੂਨਿਟ' : 'games played'}        accent="#4ade80" />
       </div>
 
       {customers.length === 0 && !error ? (
         <div style={styles.emptyState}>
           <div style={{ fontSize: '3.5rem', marginBottom: 16 }}>🎱</div>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', color: 'var(--chalk-200)', marginBottom: 8 }}>No players yet</div>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', color: 'var(--chalk-200)', marginBottom: 8 }}>{lang === 'hi' ? 'अभी कोई खिलाड़ी नहीं हैं' : lang === 'pb' ? 'ਅਜੇ ਕੋਈ ਖਿਡਾਰੀ ਨਹੀਂ' : 'No players yet'}</div>
           <p style={{ color: 'var(--chalk-400)', margin: 0, maxWidth: 340 }}>
-            Players are logged automatically the first time a game is started with their name.
+            {lang === 'hi' ? 'खिलाड़ी का नाम दर्ज होने के बाद खेल शुरू होने पर खिलाड़ी स्वचालित रूप से लॉग हो जाते हैं।' : lang === 'pb' ? 'ਖਿਡਾਰੀ ਦਾ ਨਾਮ ਦਰਜ ਹੋਣ ਤੋਂ ਬਾਅਦ ਖੇਡ ਸ਼ੁਰੂ ਹੋਣ \'ਤੇ ਖਿਡਾਰੀ ਆਪਣੇ ਆਪ ਲੌਗ ਹੋ ਜਾਂਦੇ ਹਨ।' : 'Players are logged automatically the first time a game is started with their name.'}
           </p>
         </div>
       ) : (
@@ -162,7 +163,7 @@ export default function Customers() {
               </span>
               <input
                 id="customer-search"
-                placeholder="Search players…"
+                placeholder={t('searchPlayersPlaceholder')}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 style={styles.searchInput}
@@ -193,7 +194,7 @@ export default function Customers() {
           {/* ── Result count ── */}
           {search && (
             <p style={{ color: 'var(--chalk-400)', fontSize: '0.85rem', marginBottom: 16 }}>
-              {filtered.length} result{filtered.length !== 1 ? 's' : ''} for "{search}"
+              {filtered.length} {lang === 'hi' ? 'परिणाम' : lang === 'pb' ? 'ਨਤੀਜੇ' : 'result'}{filtered.length !== 1 ? (lang === 'hi' || lang === 'pb' ? '' : 's') : ''} "{search}" {lang === 'hi' ? 'के लिए' : lang === 'pb' ? 'ਲਈ' : 'for'}
             </p>
           )}
 
@@ -230,21 +231,21 @@ export default function Customers() {
                     </div>
 
                     <div style={cardStyles.revenueBlock}>
-                      <div style={cardStyles.revenueLabel}>Lifetime Spend</div>
+                      <div style={cardStyles.revenueLabel}>{t('lifetimeSpend')}</div>
                       <div style={cardStyles.revenueValue}>{fmt(c.total_spent)}</div>
                     </div>
 
                     <div style={cardStyles.metaRow}>
                       <div style={cardStyles.metaItem}>
-                        <div style={cardStyles.metaKey}>Sessions</div>
+                        <div style={cardStyles.metaKey}>{lang === 'hi' ? 'सत्र' : lang === 'pb' ? 'ਸੈਸ਼ਨ' : 'Sessions'}</div>
                         <div style={cardStyles.metaVal}>{c.sessions_played ?? 0}</div>
                       </div>
                       <div style={cardStyles.metaItem}>
-                        <div style={cardStyles.metaKey}>Last visit</div>
-                        <div style={cardStyles.metaVal}>{relativeTime(c.last_visit)}</div>
+                        <div style={cardStyles.metaKey}>{t('lastVisit')}</div>
+                        <div style={cardStyles.metaVal}>{relativeTime(c.last_visit, lang)}</div>
                       </div>
                       <div style={cardStyles.metaItem}>
-                        <div style={cardStyles.metaKey}>Joined</div>
+                        <div style={cardStyles.metaKey}>{lang === 'hi' ? 'शामिल हुए' : lang === 'pb' ? 'ਸ਼ਾਮਲ ਹੋਏ' : 'Joined'}</div>
                         <div style={cardStyles.metaVal}>{new Date(c.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</div>
                       </div>
                     </div>
@@ -261,12 +262,12 @@ export default function Customers() {
                 <thead>
                   <tr>
                     <th style={tableStyles.th}>#</th>
-                    <th style={tableStyles.th}>Player</th>
-                    <th style={tableStyles.th}>Lifetime Spend</th>
-                    <th style={tableStyles.th}>Sessions</th>
-                    <th style={tableStyles.th}>Last Visit</th>
-                    <th style={tableStyles.th}>Joined</th>
-                    <th style={{ ...tableStyles.th, textAlign: 'right' }}>Actions</th>
+                    <th style={tableStyles.th}>{t('player')}</th>
+                    <th style={tableStyles.th}>{t('lifetimeSpend')}</th>
+                    <th style={tableStyles.th}>{lang === 'hi' ? 'सत्र' : lang === 'pb' ? 'ਸੈਸ਼ਨ' : 'Sessions'}</th>
+                    <th style={tableStyles.th}>{t('lastVisit')}</th>
+                    <th style={tableStyles.th}>{lang === 'hi' ? 'शामिल हुए' : lang === 'pb' ? 'ਸ਼ਾਮਲ ਹੋਏ' : 'Joined'}</th>
+                    <th style={{ ...tableStyles.th, textAlign: 'right' }}>{lang === 'hi' ? 'कार्रवाई' : lang === 'pb' ? 'ਕਾਰਵਾਈਆਂ' : 'Actions'}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -284,13 +285,13 @@ export default function Customers() {
                         <td style={tableStyles.td}>
                           <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--chalk-100)' }}>{c.sessions_played ?? 0}</span>
                         </td>
-                        <td style={tableStyles.td}>{relativeTime(c.last_visit)}</td>
+                        <td style={tableStyles.td}>{relativeTime(c.last_visit, lang)}</td>
                         <td style={tableStyles.td}>{new Date(c.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
                         <td style={{ ...tableStyles.td, textAlign: 'right' }}>
                           <button
                             style={styles.deleteBtn}
                             onClick={() => handleDeleteCustomer(c.id, c.display_name)}
-                            title="Delete player"
+                            title={lang === 'hi' ? 'खिलाड़ी हटाएं' : lang === 'pb' ? 'ਖਿਡਾਰੀ ਹਟਾਓ' : 'Delete player'}
                           >
                             <TrashIcon />
                           </button>

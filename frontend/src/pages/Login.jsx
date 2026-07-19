@@ -28,29 +28,7 @@ export default function Login() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const { login } = useAuth();
-  const { club_name, name, clubName, logoUrl, has_logo } = useBranding();
-
-  const displayClubName = clubName || name || club_name;
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || `${window.location.protocol}//${window.location.hostname}:5000`;
-  const fullLogoUrl = logoUrl ? (logoUrl.startsWith('http') ? logoUrl : `${API_BASE_URL}${logoUrl}`) : null;
-
-  const renderLogo = (size) => {
-    return (has_logo || logoUrl) && fullLogoUrl ? (
-      <img
-        src={fullLogoUrl}
-        alt={displayClubName}
-        style={{
-          width: size,
-          height: size,
-          objectFit: 'contain',
-          borderRadius: '50%',
-          filter: 'drop-shadow(0 12px 24px rgba(11, 43, 34, 0.55))',
-        }}
-      />
-    ) : (
-      <Logo size={size} />
-    );
-  };
+  const { club_name } = useBranding();
 
   useEffect(() => {
     if (introDone) {
@@ -85,8 +63,8 @@ export default function Login() {
     <div style={styles.page}>
       {/* Left half: club identity, always present as the "world" the panel lives in */}
       <div className="login-left-half" style={styles.leftHalf}>
-        {renderLogo(180)}
-        <h1 style={styles.clubName}>{displayClubName}</h1>
+        <Logo size={180} />
+        <h1 style={styles.clubName}>{club_name}</h1>
         <p style={styles.tagline}>Floor &amp; ledger, in one place.</p>
       </div>
 
@@ -102,8 +80,8 @@ export default function Login() {
         {introDone && (
           <form onSubmit={handleSubmit} style={styles.form}>
             <div className="login-mobile-header">
-              {renderLogo(56)}
-              <h1 className="login-mobile-title">{displayClubName}</h1>
+              <Logo size={56} />
+              <h1 className="login-mobile-title">{club_name}</h1>
             </div>
             <span style={styles.eyebrow}>Club Owner Access</span>
             <h2 style={styles.formTitle}>Sign in</h2>
@@ -173,8 +151,8 @@ export default function Login() {
             gap: 24,
           }}
         >
-          {renderLogo(96)}
-          <h1 style={styles.introTitle}>{displayClubName}</h1>
+          <Logo size={96} />
+          <h1 style={styles.introTitle}>{club_name}</h1>
         </div>
       )}
     </div>

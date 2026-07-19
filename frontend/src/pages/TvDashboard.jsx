@@ -5,6 +5,7 @@ import LiveTimer from '../components/LiveTimer';
 import Table3DModel from '../components/Table3DModel';
 import { getCategoryConfig } from '../utils/categoryAssets';
 import Logo from '../components/Logo';
+import { useTranslation } from '../utils/translations';
 
 function BackgroundOrbs() {
   return (
@@ -43,6 +44,7 @@ function BackgroundOrbs() {
 
 export default function TvDashboard() {
   const branding = useBranding();
+  const { t, lang } = useTranslation();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -60,7 +62,7 @@ export default function TvDashboard() {
       setError('');
     } catch (err) {
       console.error('TvDashboard load error:', err);
-      setError('Connection interrupted. Reconnecting...');
+      setError(lang === 'hi' ? 'कनेक्शन बाधित हुआ। पुनः प्रयास कर रहे हैं...' : lang === 'pb' ? 'ਕਨੈਕਸ਼ਨ ਟੁੱਟ ਗਿਆ। ਦੁਬਾਰਾ ਜੁੜ ਰਿਹਾ ਹੈ...' : 'Connection interrupted. Reconnecting...');
     } finally {
       setLoading(false);
     }
@@ -99,7 +101,7 @@ export default function TvDashboard() {
             <Logo size={40} />
             <div>
               <h1 style={styles.pageTitle}>{branding.club_name}</h1>
-              <p style={styles.subtitle}>Live Arena Board • Real-time table tracking</p>
+              <p style={styles.subtitle}>{lang === 'hi' ? 'लाइव एरिना बोर्ड • रियल-टाइम टेबल ट्रैकिंग' : lang === 'pb' ? 'ਲਾਈਵ ਅਰੇਨਾ ਬੋਰਡ • ਰੀਅਲ-ਟਾਈਮ ਟੇਬਲ ਟ੍ਰੈਕਿੰਗ' : 'Live Arena Board • Real-time table tracking'}</p>
             </div>
           </div>
         </div>
@@ -154,12 +156,11 @@ export default function TvDashboard() {
                         pausedDurationMs={session.paused_duration_ms}
                       />
                       {isPaused && (
-                        <span style={styles.pausedBadge}>PAUSED</span>
+                        <span style={styles.pausedBadge}>{lang === 'hi' ? 'रोक दिया गया' : lang === 'pb' ? 'ਰੋਕਿਆ ਗਿਆ' : 'PAUSED'}</span>
                       )}
                     </div>
                   )}
 
-                  {/* Status indicator pill (top-right) */}
                   <div style={{
                     ...styles.statusBadge,
                     background: isActive
@@ -170,7 +171,7 @@ export default function TvDashboard() {
                     color: isPaused ? 'var(--ink-900)' : '#fff',
                     border: '1px solid rgba(255,255,255,0.1)',
                   }}>
-                    {isActive ? '● LIVE' : isPaused ? '⏸ PAUSED' : '○ IDLE'}
+                    {isActive ? `● ${t('live').toUpperCase()}` : isPaused ? `⏸ ${t('paused').toUpperCase()}` : `○ ${t('idle').toUpperCase()}`}
                   </div>
 
                   {/* Category label badge (bottom-left) */}
@@ -190,7 +191,7 @@ export default function TvDashboard() {
                   <div style={styles.tableInfoRow}>
                     <div style={styles.tableLabel}>{asset.label}</div>
                     <div style={styles.tableMeta}>
-                      ₹{Number(asset.hourly_rate).toFixed(0)}/hr
+                      ₹{Number(asset.hourly_rate).toFixed(0)}/{lang === 'hi' ? 'घंटा' : lang === 'pb' ? 'ਘੰਟਾ' : 'hr'}
                     </div>
                   </div>
 
@@ -201,7 +202,7 @@ export default function TvDashboard() {
                       </span>
                     </div>
                   ) : (
-                    <div style={styles.playerFallback}>No active session</div>
+                    <div style={styles.playerFallback}>{t('noActiveSession')}</div>
                   )}
                 </div>
               </div>

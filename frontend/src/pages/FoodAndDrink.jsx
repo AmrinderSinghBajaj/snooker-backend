@@ -4,6 +4,7 @@ import Card from '../components/Card';
 import Modal from '../components/Modal';
 import { getFoodEmoji } from '../utils/categoryAssets';
 import Food3DModel, { getCategory } from '../components/Food3DModel';
+import { useTranslation } from '../utils/translations';
 
 /*
   FRD B.6 - Food & Drink Section:
@@ -12,6 +13,7 @@ import Food3DModel, { getCategory } from '../components/Food3DModel';
     items to a player currently at a table; cost added to their bill.
 */
 export default function FoodAndDrink() {
+  const { t, lang } = useTranslation();
   const [items, setItems] = useState([]);
   const [activeSessions, setActiveSessions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -76,14 +78,14 @@ export default function FoodAndDrink() {
 
   const getDropdownLabel = () => {
     if (isWalkin) {
-      return guestName ? `Walk-in: ${guestName}` : 'Walk-in / Other';
+      return guestName ? `${lang === 'hi' ? 'वॉक-इन' : lang === 'pb' ? 'ਵਾਕ-ਇਨ' : 'Walk-in'}: ${guestName}` : t('otherWalkinGuest');
     }
     if (selectedPlayers.length > 0) {
       const activeSess = activeSessions.find(s => s.session_id === targetSessionId);
       const tableLabel = activeSess ? ` (${activeSess.asset_label})` : '';
       return `${selectedPlayers.join(', ')}${tableLabel}`;
     }
-    return 'Select player(s) / Walk-in...';
+    return t('selectPlayerWalkinPlaceholder');
   };
 
   const load = () => {
@@ -93,7 +95,7 @@ export default function FoodAndDrink() {
         setItems(itemsRes.data);
         setActiveSessions(sessionsRes.data);
       })
-      .catch(() => setError('Could not load the menu.'))
+      .catch(() => setError(t('couldNotLoadMenu')))
       .finally(() => setLoading(false));
   };
 
@@ -110,7 +112,7 @@ export default function FoodAndDrink() {
   const handleAddItem = async (e) => {
     e.preventDefault();
     if (!name.trim() || !price || Number(price) <= 0) {
-      setError('Enter a name and a price greater than 0.');
+      setError(t('enterNameAndPrice'));
       return;
     }
     setSubmitting(true);
@@ -121,25 +123,25 @@ export default function FoodAndDrink() {
       setName('');
       setPrice('');
       load();
-      setToast('Item added');
+      setToast(t('itemAdded'));
     } catch (err) {
-      setError(err.response?.data?.detail || 'Could not add this item.');
+      setError(err.response?.data?.detail || t('couldNotAddItem'));
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDeleteItem = async (id, itemName) => {
-    const confirmed = window.confirm(`Remove "${itemName}"? This cannot be undone.`);
+    const confirmed = window.confirm(`${t('removeFoodItemConfirmed').replace('food item', `"${itemName}"`)}`);
     if (!confirmed) return;
     
     setDeletingId(id);
     try {
       await foodApi.archive(id);
       load();
-      setToast(`Removed ${itemName}`);
+      setToast(`${t('removedFoodItem')} ${itemName}`);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Could not remove this item.');
+      setError(err.response?.data?.detail || t('couldNotRemoveItem'));
     } finally {
       setDeletingId(null);
     }
@@ -172,7 +174,7 @@ export default function FoodAndDrink() {
 
   const handleAssign = async () => {
     if (!isWalkin && selectedPlayers.length === 0) {
-      setAssignMsg('Select at least one player or choose Walk-in Guest.');
+      setAssignMsg(t('selectAtLeastOnePlayer'));
       return;
     }
     setAssignBusy(true);
@@ -180,7 +182,7 @@ export default function FoodAndDrink() {
     try {
       const lines = cartLines.map((l) => ({ food_item_id: l.item.id, quantity: l.qty }));
       const sessionIdPayload = isWalkin ? 'other' : targetSessionId;
-      const orderedByPayload = isWalkin ? (guestName.trim() || 'Walk-in Guest') : selectedPlayers.join(', ');
+      const orderedByPayload = isWalkin ? (guestName.trim() || t('walkinGuestDefault')) : selectedPlayers.join(', ');
 
       await foodApi.assign(sessionIdPayload, lines, orderedByPayload);
       setCart({});
@@ -188,7 +190,7 @@ export default function FoodAndDrink() {
       setShowAssignModal(false);
       load();
     } catch (err) {
-      setAssignMsg(err.response?.data?.detail || 'Could not assign this order.');
+      setAssignMsg(err.response?.data?.detail || t('couldNotAssignOrder'));
     } finally {
       setAssignBusy(false);
     }
@@ -197,9 +199,9 @@ export default function FoodAndDrink() {
   return (
     <div>
       <div style={styles.headerRow}>
-        <h1 style={styles.pageTitle}>Food &amp; Drink</h1>
+        <h1 style={styles.pageTitle}>{t('foodDrinkTitle')}</h1>
         <button style={styles.addBtn} onClick={() => setShowAddModal(true)}>
-          + Add Item
+          + {t('addItem')}
         </button>
       </div>
 
@@ -207,12 +209,12 @@ export default function FoodAndDrink() {
 
       <div className="food-container" style={styles.container}>
         <div style={styles.menuPane}>
-          {loading && <p style={{ color: 'var(--chalk-400)' }}>Loading…</p>}
+          {loading && <p style={{ color: 'var(--chalk-400)' }}>{t('loading')}</p>}
 
           {!loading && items.length === 0 && (
             <Card style={{ textAlign: 'center', padding: 40 }}>
               <p style={{ color: 'var(--chalk-400)', margin: 0 }}>
-                No menu items yet. Add your first product to start taking orders.
+                {t('noMenuItems')}
               </p>
             </Card>
           )}
@@ -250,7 +252,7 @@ export default function FoodAndDrink() {
                       </>
                     ) : (
                       <button style={styles.addToCartBtn} onClick={() => addToCart(item.id)}>
-                        Add to bag
+                        {t('addToBag')}
                       </button>
                     )}
                   </div>
@@ -273,14 +275,14 @@ export default function FoodAndDrink() {
           <div style={styles.sidebarCart}>
             <div style={styles.sidebarHeader}>
               <span style={{ fontSize: '1.2rem', marginRight: 8 }}>🛍️</span>
-              <strong style={styles.sidebarTitle}>Current Order</strong>
+              <strong style={styles.sidebarTitle}>{t('currentOrder')}</strong>
             </div>
 
             {cartLines.length === 0 ? (
               <div style={styles.emptyCart}>
                 <span style={{ fontSize: '2.5rem', display: 'block', marginBottom: 12 }}>🛒</span>
-                <p style={{ margin: 0, color: 'var(--chalk-400)', fontWeight: 500 }}>Your bag is empty.</p>
-                <p style={{ fontSize: '0.8rem', color: 'var(--chalk-500)', marginTop: 4 }}>Add items from the menu to start a purchase.</p>
+                <p style={{ margin: 0, color: 'var(--chalk-400)', fontWeight: 500 }}>{t('bagIsEmpty')}</p>
+                <p style={{ fontSize: '0.8rem', color: 'var(--chalk-500)', marginTop: 4 }}>{t('addItemsToStart')}</p>
               </div>
             ) : (
               <div style={styles.cartContent}>
@@ -306,17 +308,17 @@ export default function FoodAndDrink() {
 
                 <div style={styles.subtotalBlock}>
                   <div style={styles.subtotalRow}>
-                    <span>Items Total</span>
+                    <span>{t('itemsTotal')}</span>
                     <span>₹{cartTotal.toFixed(2)}</span>
                   </div>
                   <div style={{ ...styles.subtotalRow, fontWeight: 700, color: 'var(--brass-300)', fontSize: '0.95rem', borderTop: '1px solid var(--felt-600)', paddingTop: 10, marginTop: 4, marginBottom: 0 }}>
-                    <span>Amount Due</span>
+                    <span>{t('amountDue')}</span>
                     <span>₹{cartTotal.toFixed(2)}</span>
                   </div>
                 </div>
 
                 <button style={styles.sidebarAssignBtn} onClick={() => setShowAssignModal(true)}>
-                  Assign &amp; Check Out
+                  {t('assignCheckOut')}
                 </button>
               </div>
             )}
@@ -325,16 +327,16 @@ export default function FoodAndDrink() {
       </div>
 
       {showAddModal && (
-        <Modal title="Add Menu Item" onClose={() => setShowAddModal(false)}>
+        <Modal title={t('addMenuItem')} onClose={() => setShowAddModal(false)}>
           <form onSubmit={handleAddItem}>
-            <label style={styles.label}>Product name</label>
+            <label style={styles.label}>{t('productName')}</label>
             <input
               style={styles.input}
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. French Fries"
             />
-            <label style={styles.label}>Price (₹)</label>
+            <label style={styles.label}>{t('priceRs')}</label>
             <input
               style={styles.input}
               type="number"
@@ -345,16 +347,16 @@ export default function FoodAndDrink() {
             />
             {error && <div style={styles.errorBanner}>{error}</div>}
             <button type="submit" style={styles.submitBtn} disabled={submitting}>
-              {submitting ? 'Adding…' : 'Add to menu'}
+              {submitting ? t('addingEllipsis') : t('addToMenu')}
             </button>
           </form>
         </Modal>
       )}
 
       {showAssignModal && (
-        <Modal title="Assign Order" onClose={() => setShowAssignModal(false)}>
+        <Modal title={t('assignOrder')} onClose={() => setShowAssignModal(false)}>
           <div>
-            <label style={styles.label}>Select Player(s) / Walk-in</label>
+            <label style={styles.label}>{t('selectPlayerWalkin')}</label>
             
             <div style={{ position: 'relative' }}>
               <button
@@ -379,7 +381,7 @@ export default function FoodAndDrink() {
                       readOnly
                       style={{ pointerEvents: 'none', marginRight: 8 }}
                     />
-                    <strong>Other (Walk-in / Guest)</strong>
+                    <strong>{t('otherWalkinGuest')}</strong>
                   </div>
 
                   {/* Playing Players */}

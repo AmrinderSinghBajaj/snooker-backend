@@ -71,13 +71,17 @@ export default function SpinningLogo3D({ size = 180 }) {
       // This is the same mapping as CircleGeometry.
       // With CanvasTexture flipY=true (default): canvas-top(Y=0) → UV V=1 → cap top.
       // Texture needs 90° rotation to appear upright on the cap.
-      const makeCapTexture = (canvasSrc, mirrorH) => {
+      const makeCapTexture = (canvasSrc, isBack) => {
         const tmp = document.createElement('canvas');
         tmp.width = tmp.height = s;
         const c = tmp.getContext('2d');
         c.translate(s / 2, s / 2);
-        if (mirrorH) c.scale(-1, 1);          // mirror for back face
-        c.rotate(-Math.PI / 2);               // -90° corrects CylinderGeometry cap UV
+        if (isBack) {
+          c.scale(-1, 1);
+          c.rotate(Math.PI / 2); // 90° corrects CylinderGeometry bottom cap UV to stay upright
+        } else {
+          c.rotate(-Math.PI / 2); // -90° corrects CylinderGeometry top cap UV
+        }
         c.drawImage(canvasSrc, -s / 2, -s / 2, s, s);
         const tex = new THREE.CanvasTexture(tmp);
         tex.colorSpace = THREE.SRGBColorSpace;
@@ -113,11 +117,30 @@ export default function SpinningLogo3D({ size = 180 }) {
       ctx.arc(s / 2, s / 2, s / 2, 0, Math.PI * 2);
       ctx.clip();
 
-      // Based on visual inspection, the circular badge is 88% of the height of the image.
-      // We scale the image so that the badge fits the 512x512 canvas perfectly.
-      const badgeDiameterInImageHeight = 0.88;
-      const targetHeight = s / badgeDiameterInImageHeight;
-      const targetWidth = targetHeight * aspect;
+      // Felt gradient background matching current theme
+      const style = getComputedStyle(document.documentElement);
+      const felt700 = style.getPropertyValue('--felt-700').trim() || '#1b5c4c';
+      const felt900 = style.getPropertyValue('--felt-900').trim() || '#0b2b22';
+
+      const grad = ctx.createRadialGradient(s / 2, s / 2, 40, s / 2, s / 2, s / 2);
+      grad.addColorStop(0, felt700);
+      grad.addColorStop(1, felt900);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(s / 2, s / 2, s / 2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Fit the image to cover the circular canvas face.
+      // Since the circular badge's diameter corresponds to the smaller dimension of the image,
+      // we scale the smaller dimension to match the canvas size 's'.
+      let targetWidth, targetHeight;
+      if (aspect > 1) {
+        targetHeight = s;
+        targetWidth = s * aspect;
+      } else {
+        targetWidth = s;
+        targetHeight = s / aspect;
+      }
 
       // Draw centered
       ctx.drawImage(

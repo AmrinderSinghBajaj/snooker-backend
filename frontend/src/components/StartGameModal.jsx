@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import Modal from './Modal';
 import { customersApi } from '../api/endpoints';
+import { useTranslation } from '../utils/translations';
 
 export default function StartGameModal({ asset, onClose, onStarted }) {
+  const { t } = useTranslation();
   const [names, setNames] = useState(['']);
   const [customers, setCustomers] = useState([]);
   const [submitting, setSubmitting] = useState(false);
@@ -32,7 +34,7 @@ export default function StartGameModal({ asset, onClose, onStarted }) {
     e.preventDefault();
     const cleaned = names.map((n) => n.trim()).filter(Boolean);
     if (cleaned.length === 0) {
-      setError('Enter at least one player name.');
+      setError(t('enterAtLeastOnePlayer'));
       return;
     }
     setSubmitting(true);
@@ -40,21 +42,21 @@ export default function StartGameModal({ asset, onClose, onStarted }) {
     try {
       await onStarted(cleaned);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Could not start the game.');
+      setError(err.response?.data?.detail || t('couldNotStartGame'));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Modal title={`Start game on ${asset.label}`} onClose={onClose}>
+    <Modal title={`${t('startGameOn')} ${asset.label}`} onClose={onClose}>
       <form onSubmit={handleSubmit}>
-        <label style={styles.label}>Player names (1-4)</label>
+        <label style={styles.label}>{t('playerNames')}</label>
         {names.map((name, i) => (
           <div key={i} style={styles.nameRow}>
             <input
               style={styles.input}
-              placeholder={`Player ${i + 1}`}
+              placeholder={`${t('playerPlaceholder')} ${i + 1}`}
               value={name}
               onChange={(e) => updateName(i, e.target.value)}
               autoFocus={i === 0}
@@ -70,7 +72,7 @@ export default function StartGameModal({ asset, onClose, onStarted }) {
 
         {names.length < 4 && (
           <button type="button" onClick={addNameField} style={styles.addNameBtn}>
-            + Add another player
+            + {t('addAnotherPlayer')}
           </button>
         )}
 
@@ -83,7 +85,7 @@ export default function StartGameModal({ asset, onClose, onStarted }) {
         {error && <div style={styles.error}>{error}</div>}
 
         <button type="submit" style={styles.startBtn} disabled={submitting}>
-          {submitting ? 'Starting…' : 'Start'}
+          {submitting ? t('addingEllipsis') : t('startGame')}
         </button>
       </form>
     </Modal>

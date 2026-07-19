@@ -1,12 +1,14 @@
-export default function Modal({ title, onClose, children, width = 420 }) {
+export default function Modal({ title, onClose, children, width = 420, hideClose = false }) {
   return (
-    <div style={styles.overlay} onClick={onClose}>
+    <div style={styles.overlay} onClick={hideClose ? undefined : onClose}>
       <div style={{ ...styles.panel, width }} onClick={(e) => e.stopPropagation()}>
         <div style={styles.header}>
           <h3 style={styles.title}>{title}</h3>
-          <button onClick={onClose} style={styles.closeBtn} aria-label="Close">
-            ×
-          </button>
+          {!hideClose && (
+            <button onClick={onClose} style={styles.closeBtn} aria-label="Close">
+              ×
+            </button>
+          )}
         </div>
         <div style={styles.content}>{children}</div>
       </div>

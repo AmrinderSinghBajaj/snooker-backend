@@ -50,7 +50,7 @@ let cachedAssets = null;
 let cachedActiveSessions = null;
 
 export default function Dashboard() {
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
   const [assets, setAssets] = useState(cachedAssets || []);
   const [activeSessions, setActiveSessions] = useState(cachedActiveSessions || []);
   const [loading, setLoading] = useState(!cachedAssets);
@@ -72,11 +72,11 @@ export default function Dashboard() {
       setAssets(assetsRes.data);
       setActiveSessions(sessionsRes.data);
     } catch {
-      setError('Could not load the dashboard.');
+      setError(t('couldNotLoadDashboard'));
     } finally {
       if (!silent) setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     const hasCache = cachedAssets !== null;
@@ -106,7 +106,7 @@ export default function Dashboard() {
       }
       await loadAll(true);
     } catch {
-      setError('Could not update the table status.');
+      setError(t('couldNotUpdateStatus'));
     }
   };
 
@@ -115,7 +115,7 @@ export default function Dashboard() {
       <div style={{ position: 'relative', minHeight: '60vh' }}>
         <BackgroundOrbs />
         <div style={{ position: 'relative', zIndex: 1 }}>
-          <h1 style={styles.pageTitle}>Console Control</h1>
+          <h1 style={styles.pageTitle}>{t('consoleControl')}</h1>
           <div style={styles.grid}>
             {[1, 2, 3, 4, 5, 6].map((n) => (
               <div key={n} className="skeleton" style={{ height: 260, borderRadius: 'var(--radius-md)' }} />
@@ -134,13 +134,13 @@ export default function Dashboard() {
           <Card style={{ textAlign: 'center', padding: 64 }}>
             <div style={{ fontSize: '3rem', marginBottom: 16 }}>🎱</div>
             <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--chalk-100)', marginBottom: 12 }}>
-              No tables on the floor yet
+              {t('noTablesOnFloor')}
             </h2>
             <p style={{ color: 'var(--chalk-400)', marginBottom: 28 }}>
-              Add your tables and devices before starting games.
+              {t('addTablesBeforeStarting')}
             </p>
             <button style={styles.addTablesBtn} onClick={() => navigate('/tables')}>
-              Add Tables
+              {t('addTables')}
             </button>
           </Card>
         </div>
@@ -251,7 +251,7 @@ export default function Dashboard() {
                   <div style={styles.tableInfoRow}>
                     <div style={styles.tableLabel}>{asset.label}</div>
                     <div style={styles.tableMeta}>
-                      ₹{Number(asset.hourly_rate).toFixed(0)}/hr
+                      ₹{Number(asset.hourly_rate).toFixed(0)}/{lang === 'hi' ? 'घंटा' : lang === 'pb' ? 'ਘੰਟਾ' : 'hr'}
                     </div>
                   </div>
 
