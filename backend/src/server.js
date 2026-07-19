@@ -12,6 +12,7 @@ import foodRouter      from './routes/food.js';
 import revenueRouter   from './routes/revenue.js';
 import customersRouter from './routes/customers.js';
 import brandingRouter  from './routes/branding.js';
+import Club            from './models/Club.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -30,7 +31,7 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173,ht
   .map((o) => o.trim());
 
 app.use(cors({
-  origin: (origin, callback) => {
+  origin: async (origin, callback) => {
     // Allow requests with no origin (e.g. curl, mobile apps in dev)
     if (!origin) return callback(null, true);
     try {
@@ -42,6 +43,18 @@ app.use(cors({
         allowedOrigins.includes(origin) ||
         allowedOrigins.includes(origin + '/')
       ) {
+        return callback(null, true);
+      }
+
+      // Check if it matches any registered club's customDomain or subdomain
+      const cleanHost = hostname.replace(/^www\./i, '');
+      const club = await Club.findOne({
+        $or: [
+          { customDomain: cleanHost },
+          { subdomain: cleanHost }
+        ]
+      });
+      if (club) {
         return callback(null, true);
       }
     } catch (e) {
