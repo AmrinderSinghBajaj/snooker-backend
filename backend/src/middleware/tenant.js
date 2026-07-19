@@ -33,15 +33,17 @@ export async function resolveTenant(req, res, next) {
       }
     }
 
-    // Fallback default
-    if (!identifier) {
-      identifier = 'arena';
+    let club = null;
+    const explicitIdentifier = req.headers['x-tenant-id'] || req.query.club;
+
+    // 1. If explicit tenant identifier is provided, look it up first
+    if (explicitIdentifier) {
+      club = await Club.findOne({ subdomain: explicitIdentifier.toLowerCase() });
     }
 
-    // First try custom domain matching via resolved host
-    const hostWithWww = `www.${cleanHost}`;
-    let club = null;
-    if (cleanHost && !isIP) {
+    // 2. Fall back to custom domain matching via resolved host
+    if (!club && cleanHost && !isIP) {
+      const hostWithWww = `www.${cleanHost}`;
       club = await Club.findOne({
         $or: [
           { customDomain: cleanHost },
@@ -50,7 +52,7 @@ export async function resolveTenant(req, res, next) {
       });
     }
 
-    // If not found, try custom domain matching via Origin/Referer headers
+    // 3. If not found, try custom domain matching via Origin/Referer headers
     if (!club) {
       const originHeader = req.headers.origin || req.headers.referer;
       if (originHeader) {
@@ -72,13 +74,16 @@ export async function resolveTenant(req, res, next) {
       }
     }
 
-    // If not found, fall back to subdomain/identifier lookup
+    // 4. Fall back to subdomain/identifier lookup
     if (!club) {
+      if (!identifier) {
+        identifier = 'arena';
+      }
       club = await Club.findOne({ subdomain: identifier.toLowerCase() });
     }
 
     if (!club) {
-      return res.status(404).json({ detail: `Club tenant '${identifier}' not found.` });
+      return res.status(404).json({ detail: `Club tenant '${identifier || explicitIdentifier}' not found.` });
     }
 
     req.club = club;

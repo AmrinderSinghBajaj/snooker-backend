@@ -66,15 +66,9 @@ export function BrandingProvider({ children }) {
   };
 
   useEffect(() => {
-    // 1. Check window domain name for custom domains
-    const hostname = window.location.hostname.replace(/^www\./i, '');
     let detectedTenant = null;
 
-    if (hostname === 'bajajsnooker.shop' || hostname === 'bajaj.localhost') {
-      detectedTenant = 'bajaj';
-    }
-
-    // 2. Detect and persist tenant from URL query param if present
+    // 1. Detect and persist tenant from URL query param if present
     const urlParams = new URLSearchParams(window.location.search);
     const clubParam = urlParams.get('club');
     if (clubParam) {
@@ -82,9 +76,17 @@ export function BrandingProvider({ children }) {
       detectedTenant = clubParam;
     }
 
-    // 3. Fall back to sessionStorage if not yet detected
+    // 2. Fall back to sessionStorage if already set (e.g. from user login)
     if (!detectedTenant) {
       detectedTenant = sessionStorage.getItem('tenant_id');
+    }
+
+    // 3. Fall back to window domain name for custom domains
+    if (!detectedTenant) {
+      const hostname = window.location.hostname.replace(/^www\./i, '');
+      if (hostname === 'bajajsnooker.shop' || hostname === 'bajaj.localhost') {
+        detectedTenant = 'bajaj';
+      }
     }
 
     // Persist resolved tenant
