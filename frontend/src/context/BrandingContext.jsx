@@ -67,7 +67,7 @@ export function BrandingProvider({ children }) {
 
   useEffect(() => {
     // 1. Check window domain name for custom domains
-    const hostname = window.location.hostname;
+    const hostname = window.location.hostname.replace(/^www\./i, '');
     let detectedTenant = null;
 
     if (hostname === 'bajajsnooker.shop' || hostname === 'bajaj.localhost') {
@@ -97,6 +97,11 @@ export function BrandingProvider({ children }) {
       .then((res) => {
         const data = res.data;
         setBranding(data);
+
+        // Save resolved tenant subdomain to sessionStorage so headers send it
+        if (data.subdomain) {
+          sessionStorage.setItem('tenant_id', data.subdomain);
+        }
 
         // 5. Dynamically apply custom white-labeled themes using CSS variables
         applyThemeColors(data.theme_primary, data.theme_secondary);

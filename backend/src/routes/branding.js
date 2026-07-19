@@ -20,6 +20,7 @@ router.get('/', resolveTenant, (req, res) => {
   const customLogoUrl = club.logoUrl || `/branding/logo?club=${club.subdomain}`;
 
   return res.json({
+    subdomain:        club.subdomain,
     club_name:        club.name,
     name:             club.name,
     clubName:         club.name,
@@ -61,6 +62,7 @@ router.put('/settings', requireAuth, async (req, res) => {
 
     return res.json({
       detail: 'Settings updated successfully',
+      subdomain:        club.subdomain,
       club_name:        club.name,
       owner_full_name:  club.ownerName,
       owner_role_label: 'Club Owner',

@@ -31,15 +31,28 @@ export async function resolveTenant(req, res, next) {
     }
 
     // First try custom domain matching via request hostname
-    let club = await Club.findOne({ customDomain: req.hostname });
+    const cleanHost = req.hostname ? req.hostname.replace(/^www\./i, '') : '';
+    const hostWithWww = `www.${cleanHost}`;
+    let club = await Club.findOne({
+      $or: [
+        { customDomain: cleanHost },
+        { customDomain: hostWithWww }
+      ]
+    });
 
     // If not found, try custom domain matching via Origin/Referer headers
     if (!club) {
       const originHeader = req.headers.origin || req.headers.referer;
       if (originHeader) {
         try {
-          const originHost = new URL(originHeader).hostname;
-          club = await Club.findOne({ customDomain: originHost });
+          const originHost = new URL(originHeader).hostname.replace(/^www\./i, '');
+          const originHostWithWww = `www.${originHost}`;
+          club = await Club.findOne({
+            $or: [
+              { customDomain: originHost },
+              { customDomain: originHostWithWww }
+            ]
+          });
         } catch (e) {
           // ignore parsing errors
         }
