@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import Modal from './Modal';
-import TimePresetPicker from './TimePresetPicker';
 import { customersApi } from '../api/endpoints';
 import { useTranslation } from '../utils/translations';
 
@@ -97,11 +96,16 @@ export default function StartGameModal({ asset, onClose, onStarted }) {
           </button>
         )}
 
-        <TimePresetPicker
-          value={startTime}
-          onChange={setStartTime}
-          label={t('startTimeLabel')}
-        />
+        <div style={{ marginBottom: 18 }}>
+          <label style={styles.label}>{t('startTimeLabel')}</label>
+          <input
+            type="time"
+            style={styles.timeInput}
+            value={startTime}
+            onChange={(e) => setStartTime(e.target.value)}
+            required
+          />
+        </div>
 
         <datalist id="customer-suggestions">
           {customers.map((c) => (
@@ -140,6 +144,19 @@ const styles = {
     color: 'var(--chalk-100)',
     padding: '10px 12px',
     fontSize: '0.9rem',
+  },
+  timeInput: {
+    width: '100%',
+    colorScheme: 'dark',
+    background: 'var(--felt-800)',
+    border: '1px solid var(--felt-500)',
+    borderRadius: 'var(--radius-sm)',
+    color: 'var(--chalk-100)',
+    padding: '10px 12px',
+    fontSize: '0.92rem',
+    fontFamily: 'var(--font-mono)',
+    fontWeight: 600,
+    boxSizing: 'border-box',
   },
   removeBtn: {
     background: 'transparent',
