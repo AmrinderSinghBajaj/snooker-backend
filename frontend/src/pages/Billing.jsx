@@ -1176,6 +1176,8 @@ const styles = {
 function PaymentSettlementModal({ prompt, onClose, onConfirm, lang, t }) {
   const [customers, setCustomers] = useState([]);
   const [mode, setMode] = useState('single');
+  const totalRequired = prompt.amount || 0;
+  const [amountReceived, setAmountReceived] = useState(String(totalRequired));
   const [walletAmt, setWalletAmt] = useState('');
   const [onlineAmt, setOnlineAmt] = useState('');
   const [offlineAmt, setOfflineAmt] = useState('');
@@ -1188,7 +1190,6 @@ function PaymentSettlementModal({ prompt, onClose, onConfirm, lang, t }) {
       .catch((err) => console.error('Could not load customers', err));
   }, []);
 
-  const totalRequired = prompt.amount || 0;
   const customer = customers.find(c =>
     (c.display_name || '').toLowerCase().trim() === (prompt.playerName || '').toLowerCase().trim()
   );
@@ -1196,29 +1197,45 @@ function PaymentSettlementModal({ prompt, onClose, onConfirm, lang, t }) {
 
   const handleQuickPay = async (method) => {
     setModalErr('');
+    const rec = Number(amountReceived);
+    if (isNaN(rec) || rec <= 0) {
+      setModalErr('Please enter a valid amount received.');
+      return;
+    }
+
     if (method === 'wallet') {
       if (!customer) {
         setModalErr('No registered customer profile found for wallet payment.');
         return;
       }
-      if (availableWallet < totalRequired) {
+      if (availableWallet < rec) {
         setModalErr(`Insufficient wallet balance (Available: ₹${availableWallet.toFixed(2)}).`);
         return;
       }
     }
     setSubmitting(true);
-    await onConfirm({ payment_method: method, wallet_amount: method === 'wallet' ? totalRequired : 0 });
+    await onConfirm({
+      payment_method: method,
+      amount_received: rec,
+      wallet_amount: method === 'wallet' ? Math.min(rec, totalRequired) : 0,
+    });
     setSubmitting(false);
   };
 
   const handleConfirmSplit = async () => {
     setModalErr('');
+    const rec = Number(amountReceived);
+    if (isNaN(rec) || rec <= 0) {
+      setModalErr('Please enter a valid amount received.');
+      return;
+    }
     const w = Number(walletAmt) || 0;
     const o = Number(onlineAmt) || 0;
     const off = Number(offlineAmt) || 0;
+    const effectivePaid = Math.min(rec, totalRequired);
 
-    if (Math.round((w + o + off) * 100) !== Math.round(totalRequired * 100)) {
-      setModalErr(`Entered amounts sum to ₹${(w + o + off).toFixed(2)}, which must equal total due ₹${totalRequired.toFixed(2)}.`);
+    if (Math.round((w + o + off) * 100) !== Math.round(effectivePaid * 100)) {
+      setModalErr(`Entered split amounts sum to ₹${(w + o + off).toFixed(2)}, which must equal paid amount ₹${effectivePaid.toFixed(2)}.`);
       return;
     }
 
@@ -1236,6 +1253,7 @@ function PaymentSettlementModal({ prompt, onClose, onConfirm, lang, t }) {
     setSubmitting(true);
     await onConfirm({
       payment_method: 'split',
+      amount_received: rec,
       wallet_amount: w,
       online_amount: o,
       offline_amount: off,
@@ -1246,17 +1264,62 @@ function PaymentSettlementModal({ prompt, onClose, onConfirm, lang, t }) {
   return (
     <Modal title={t('selectPaymentMethod')} onClose={onClose} width={460}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div style={{ background: 'var(--felt-900)', padding: '12px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--felt-600)' }}>
-          <p style={{ color: 'var(--chalk-200)', fontSize: '0.9rem', margin: 0, lineHeight: 1.5 }}>
-            {lang === 'hi' ? 'भुगतान की पुष्टि: ' : lang === 'pb' ? 'ਭੁਗਤਾਨ ਦੀ ਪੁਸ਼ਟੀ: ' : 'Confirming payment of '}
-            <strong>₹{totalRequired.toFixed(2)}</strong> {lang === 'hi' ? 'के लिए ' : lang === 'pb' ? 'ਲਈ ' : 'for '}
-            <strong>{prompt.playerName}</strong>.
-          </p>
-          {customer && (
-            <div style={{ marginTop: 6, fontSize: '0.82rem', color: availableWallet > 0 ? 'var(--brass-300)' : 'var(--chalk-400)', fontWeight: 600 }}>
-              👛 Customer Wallet Balance: ₹{availableWallet.toFixed(2)}
-            </div>
-          )}
+        <div style={{ background: 'var(--felt-900)', padding: '14px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--felt-600)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <p style={{ color: 'var(--chalk-200)', fontSize: '0.9rem', margin: 0 }}>
+              Bill Due: <strong>₹{totalRequired.toFixed(2)}</strong> for <strong>{prompt.playerName}</strong>
+            </p>
+            {customer && (
+              <div style={{ fontSize: '0.82rem', color: availableWallet > 0 ? 'var(--brass-300)' : 'var(--chalk-400)', fontWeight: 600 }}>
+                👛 Wallet: ₹{availableWallet.toFixed(2)}
+              </div>
+            )}
+          </div>
+
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ fontSize: '0.78rem', color: 'var(--chalk-400)', fontWeight: 600 }}>
+              Amount Received from Customer (₹)
+            </span>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              style={{
+                background: 'var(--felt-800)',
+                border: '1px solid var(--brass-500)',
+                borderRadius: 'var(--radius-sm)',
+                color: 'var(--chalk-100)',
+                padding: '10px 12px',
+                fontSize: '1.05rem',
+                fontFamily: 'var(--font-mono)',
+                fontWeight: 700,
+                outline: 'none',
+              }}
+              value={amountReceived}
+              onChange={(e) => setAmountReceived(e.target.value)}
+              placeholder="e.g. 200"
+            />
+          </label>
+
+          {(() => {
+            const rec = Number(amountReceived) || 0;
+            const diff = Math.round((rec - totalRequired) * 100) / 100;
+            if (rec > 0 && diff > 0) {
+              return (
+                <div style={{ background: 'rgba(201, 162, 75, 0.18)', border: '1px solid var(--brass-500)', borderRadius: 'var(--radius-sm)', padding: '8px 12px', fontSize: '0.82rem', color: 'var(--brass-300)', fontWeight: 600 }}>
+                  🎉 Overpayment of ₹{diff.toFixed(2)} will be credited to {prompt.playerName}'s Advance Wallet!
+                </div>
+              );
+            }
+            if (rec > 0 && diff < 0) {
+              return (
+                <div style={{ background: 'rgba(217, 123, 43, 0.18)', border: '1px solid var(--orange-warn)', borderRadius: 'var(--radius-sm)', padding: '8px 12px', fontSize: '0.82rem', color: 'var(--orange-warn)', fontWeight: 600 }}>
+                  ⚠️ Underpayment of ₹{Math.abs(diff).toFixed(2)} will remain as Outstanding Pending!
+                </div>
+              );
+            }
+            return null;
+          })()}
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: availableWallet >= 1 ? '1fr 1fr' : '1fr 1fr', gap: 10 }}>

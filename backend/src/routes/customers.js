@@ -68,7 +68,15 @@ router.get('/', requireAuth, async (req, res) => {
  */
 router.get('/wallet/summary', requireAuth, async (req, res) => {
   try {
-    const customers = await Customer.find({ clubId: req.admin.clubId }).sort({ walletBalance: -1, displayName: 1 });
+    const walletCustomerIds = await WalletTransaction.distinct('customerId', { clubId: req.admin.clubId });
+    const customers = await Customer.find({
+      clubId: req.admin.clubId,
+      $or: [
+        { walletBalance: { $gt: 0 } },
+        { _id: { $in: walletCustomerIds } },
+      ],
+    }).sort({ walletBalance: -1, displayName: 1 });
+
     const totalAdvance = customers.reduce((sum, c) => sum + (c.walletBalance || 0), 0);
     return res.json({
       total_advance: Math.round(totalAdvance * 100) / 100,
