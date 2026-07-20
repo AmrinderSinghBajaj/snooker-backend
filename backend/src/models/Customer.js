@@ -1,9 +1,10 @@
 import mongoose from 'mongoose';
 
 const customerSchema = new mongoose.Schema({
-  clubId:      { type: mongoose.Schema.Types.ObjectId, ref: 'Club', required: true, index: true },
-  username:    { type: String, required: true, index: true },
-  displayName: { type: String, required: true },
+  clubId:        { type: mongoose.Schema.Types.ObjectId, ref: 'Club', required: true, index: true },
+  username:      { type: String, required: true, index: true },
+  displayName:   { type: String, required: true },
+  walletBalance: { type: Number, default: 0 },
 }, { timestamps: true });
 
 // Enforce unique usernames scoped within each club

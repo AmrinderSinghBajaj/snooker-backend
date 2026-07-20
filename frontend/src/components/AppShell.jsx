@@ -19,6 +19,7 @@ const NAV_ITEMS = [
   { to: '/billing', key: 'billing', label: 'Billing Section' },
   { to: '/tables', key: 'tablesPlaystation', label: 'Table and PlayStation Section' },
   { to: '/food', key: 'foodDrink', label: 'Food and Drink' },
+  { to: '/advance-payments', key: 'advancePayments', label: 'Advance Payment Customers' },
   { to: '/revenue', key: 'revenue', label: 'Revenue Section' },
   { to: '/settings', key: 'settings', label: 'Setting Section' },
   { to: '/tournament', key: 'tournament', label: 'Tournament', future: true },

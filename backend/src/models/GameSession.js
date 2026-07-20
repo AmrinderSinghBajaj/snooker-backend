@@ -35,7 +35,10 @@ const gameSessionSchema = new mongoose.Schema({
   paidAmount:    { type: Number, default: 0 },
   pendingAmount: { type: Number, default: 0 },
   paymentStatus: { type: String, default: null }, // 'paid' | 'unpaid' | null
-  paymentMethod: { type: String, enum: ['online', 'offline', null], default: null },
+  paymentMethod:     { type: String, enum: ['online', 'offline', 'wallet', 'split', null], default: null },
+  walletPaidAmount:  { type: Number, default: 0 },
+  onlinePaidAmount:  { type: Number, default: 0 },
+  offlinePaidAmount: { type: Number, default: 0 },
 
   players:    [playerSchema],
   foodOrders: [foodOrderLineSchema],

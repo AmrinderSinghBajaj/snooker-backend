@@ -25,8 +25,12 @@ export const billingApi = {
   split: (sessionId, payerCustomerIds, payerNames) => api.post(`/billing/${sessionId}/split`, { payer_customer_ids: payerCustomerIds, payer_names: payerNames }),
   done: (sessionId, payerNames) => api.post(`/billing/${sessionId}/done`, { payer_names: payerNames }),
   records: () => api.get('/billing/records'),
-  markPaid: (sessionId, paymentMethod) =>
-    api.post(`/billing/${sessionId}/paid`, { payment_method: paymentMethod }),
+  markPaid: (sessionId, paymentMethodOrPayload) => {
+    const payload = typeof paymentMethodOrPayload === 'string'
+      ? { payment_method: paymentMethodOrPayload }
+      : paymentMethodOrPayload;
+    return api.post(`/billing/${sessionId}/paid`, payload);
+  },
   markUnpaid: (sessionId, paidAmount, pendingAmount) =>
     api.post(`/billing/${sessionId}/unpaid`, { paid_amount: paidAmount, pending_amount: pendingAmount }),
   detail: (sessionId) => api.get(`/billing/${sessionId}/detail`),
@@ -55,7 +59,12 @@ export const revenueApi = {
 
 export const customersApi = {
   list: () => api.get('/customers'),
+  create: (data) => api.post('/customers', data),
   remove: (id) => api.delete(`/customers/${id}`),
+  walletSummary: () => api.get('/customers/wallet/summary'),
+  addWalletMoney: (id, amount, paymentMethod, note) =>
+    api.post(`/customers/${id}/wallet/add`, { amount, payment_method: paymentMethod, note }),
+  walletHistory: (id) => api.get(`/customers/${id}/wallet/history`),
 };
 
 export const brandingApi = {

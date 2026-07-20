@@ -41,7 +41,7 @@ export function serializeActiveSession(session, asset) {
   };
 }
 
-export function serializeBillingRecord(session, assetLabel) {
+export function serializeBillingRecord(session, assetLabel, hourlyRate = null) {
   let payers = session.players.filter((p) => p.isPayer);
   if (payers.length === 0) {
     payers = session.players;
@@ -54,17 +54,28 @@ export function serializeBillingRecord(session, assetLabel) {
     || session.assetLabelOverride
     || 'Manual Entry';
 
+  const timeAmt = session.timeAmount ?? Math.max(0, (session.totalAmount ?? 0) - (session.foodAmount ?? 0));
+  let calculatedRate = hourlyRate;
+  if (calculatedRate == null && minutes > 0 && timeAmt > 0) {
+    calculatedRate = Math.round((timeAmt / minutes) * 60 * 100) / 100;
+  }
+
   return {
     session_id:          session._id.toString(),
     serial_number:       session.serialNumber,
     player_names:        names,
     time_played_minutes: minutes,
+    time_amount:         timeAmt,
+    hourly_rate:         calculatedRate ?? 0,
     food_amount:         session.foodAmount ?? 0,
     total_amount:        session.totalAmount ?? 0,
     payment_status:      session.paymentStatus ?? null,
     payment_method:      session.paymentMethod ?? null,
     paid_amount:         session.paidAmount ?? 0,
     pending_amount:      session.pendingAmount ?? 0,
+    wallet_paid_amount:  session.walletPaidAmount ?? 0,
+    online_paid_amount:  session.onlinePaidAmount ?? 0,
+    offline_paid_amount: session.offlinePaidAmount ?? 0,
     start_time:          session.startTime ?? null,
     stop_time:           session.stopTime ?? null,
     asset_label:         label,
@@ -93,30 +104,34 @@ export function serializeSessionDetail(session, assetLabel) {
   }));
 
   return {
-    session_id:     session._id.toString(),
-    serial_number:  session.serialNumber,
-    asset_label:    label,
-    player_names:   names,
-    start_time:     session.startTime ?? null,
-    stop_time:      session.stopTime ?? null,
-    minutes_played: minutes,
-    time_amount:    session.timeAmount ?? 0,
-    food_amount:    session.foodAmount ?? 0,
-    total_amount:   session.totalAmount ?? 0,
-    food_lines:     foodLines,
-    payment_status: session.paymentStatus ?? null,
-    payment_method: session.paymentMethod ?? null,
-    paid_amount:    session.paidAmount ?? 0,
-    pending_amount: session.pendingAmount ?? 0,
+    session_id:          session._id.toString(),
+    serial_number:       session.serialNumber,
+    asset_label:         label,
+    player_names:        names,
+    start_time:          session.startTime ?? null,
+    stop_time:           session.stopTime ?? null,
+    minutes_played:      minutes,
+    time_amount:         session.timeAmount ?? 0,
+    food_amount:         session.foodAmount ?? 0,
+    total_amount:        session.totalAmount ?? 0,
+    food_lines:          foodLines,
+    payment_status:      session.paymentStatus ?? null,
+    payment_method:      session.paymentMethod ?? null,
+    paid_amount:         session.paidAmount ?? 0,
+    pending_amount:      session.pendingAmount ?? 0,
+    wallet_paid_amount:  session.walletPaidAmount ?? 0,
+    online_paid_amount:  session.onlinePaidAmount ?? 0,
+    offline_paid_amount: session.offlinePaidAmount ?? 0,
   };
 }
 
 export function serializeCustomer(c) {
   return {
-    id:           c._id.toString(),
-    username:     c.username,
-    display_name: c.displayName,
-    created_at:   c.createdAt,
+    id:             c._id.toString(),
+    username:       c.username,
+    display_name:   c.displayName,
+    wallet_balance: c.walletBalance ?? 0,
+    created_at:     c.createdAt,
   };
 }
 

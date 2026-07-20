@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from '../utils/translations';
-import { billingApi } from '../api/endpoints';
+import { billingApi, customersApi } from '../api/endpoints';
 import Card from '../components/Card';
 import Modal from '../components/Modal';
 import EditBillingModal from '../components/EditBillingModal';
@@ -115,19 +115,23 @@ export default function Billing() {
     }
   };
 
-  const handleConfirmPaymentMethod = async (method) => {
+  const handleConfirmPaymentMethod = async (methodOrPayload) => {
     if (!paymentMethodPrompt) return;
     const { type, id, playerName, records } = paymentMethodPrompt;
     setPaymentMethodPrompt(null);
 
+    const payload = typeof methodOrPayload === 'string'
+      ? { payment_method: methodOrPayload }
+      : methodOrPayload;
+
     if (type === 'single') {
       setBusyId(id);
       try {
-        await billingApi.markPaid(id, method);
+        await billingApi.markPaid(id, payload);
         load();
         setToast(t('markedAsPaid'));
-      } catch {
-        setError(t('couldNotMarkPaid'));
+      } catch (err) {
+        setError(err.response?.data?.detail || t('couldNotMarkPaid'));
       } finally {
         setBusyId(null);
       }
@@ -137,7 +141,7 @@ export default function Billing() {
         let successCount = 0;
         for (const record of records) {
           try {
-            await billingApi.markPaid(record.session_id, method);
+            await billingApi.markPaid(record.session_id, payload);
             successCount++;
           } catch (err) {
             console.error(`Failed to mark ${record.session_id} as paid:`, err);
@@ -146,7 +150,7 @@ export default function Billing() {
         load();
         setToast(t('markedAllAsPaid').replace('records', `${successCount}/${records.length} records`));
       } catch (err) {
-        setError(t('errorMarkingPaid'));
+        setError(err.response?.data?.detail || t('errorMarkingPaid'));
       } finally {
         setBusyId(null);
       }
@@ -633,6 +637,14 @@ export default function Billing() {
               <p style={{ ...styles.detailLine, fontWeight: 700, fontSize: '1.05rem' }}>
                 {t('total')}: ₹{detail.total_amount.toFixed(2)}
               </p>
+              {detail.payment_method && (
+                <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--felt-600)', fontSize: '0.88rem', color: 'var(--chalk-200)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div><strong>Payment Mode:</strong> <span style={{ textTransform: 'capitalize' }}>{detail.payment_method}</span></div>
+                  {detail.wallet_paid_amount > 0 && <div>👛 Wallet Paid: ₹{detail.wallet_paid_amount.toFixed(2)}</div>}
+                  {detail.online_paid_amount > 0 && <div>📱 Online Paid: ₹{detail.online_paid_amount.toFixed(2)}</div>}
+                  {detail.offline_paid_amount > 0 && <div>💵 Cash Paid: ₹{detail.offline_paid_amount.toFixed(2)}</div>}
+                </div>
+              )}
             </div>
           )}
         </Modal>
@@ -663,84 +675,13 @@ export default function Billing() {
       )}
 
       {paymentMethodPrompt && (
-        <Modal
-          title={t('selectPaymentMethod')}
+        <PaymentSettlementModal
+          prompt={paymentMethodPrompt}
           onClose={() => setPaymentMethodPrompt(null)}
-          width={400}
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <p style={{ color: 'var(--chalk-200)', fontSize: '0.9rem', margin: 0, lineHeight: 1.5 }}>
-              {lang === 'hi' ? 'भुगतान की पुष्टि: ' : lang === 'pb' ? 'ਭੁਗਤਾਨ ਦੀ ਪੁਸ਼ਟੀ: ' : 'Confirming payment of '} <strong>₹{paymentMethodPrompt.amount.toFixed(2)}</strong> {lang === 'hi' ? 'के लिए ' : lang === 'pb' ? 'ਲਈ ' : 'for '}
-              <strong>{paymentMethodPrompt.playerName}</strong>.
-              {paymentMethodPrompt.type === 'all' && (lang === 'hi' ? ` इससे उनके सभी ${paymentMethodPrompt.records.length} बकाया रिकॉर्ड्स भुगतान किए गए चिह्नित हो जाएंगे।` : lang === 'pb' ? ` ਇਸ ਨਾਲ ਉਹਨਾਂ ਦੇ ਸਾਰੇ ${paymentMethodPrompt.records.length} ਬਕਾਇਆ ਰਿਕਾਰਡ ਭੁਗਤਾਨ ਕੀਤੇ ਚਿੰਨ੍ਹਿਤ ਹੋ ਜਾਣਗੇ।` : ` This will mark all ${paymentMethodPrompt.records.length} outstanding records as paid.`)}
-            </p>
-
-            <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
-              <button
-                style={{
-                  flex: 1,
-                  background: 'rgba(79, 70, 229, 0.15)',
-                  border: '2px solid #4F46E5',
-                  color: '#818CF8',
-                  borderRadius: 'var(--radius-md)',
-                  padding: '16px 12px',
-                  fontWeight: 700,
-                  fontSize: '0.95rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 6,
-                  transition: 'all 0.15s ease',
-                }}
-                onClick={() => handleConfirmPaymentMethod('online')}
-              >
-                <span style={{ fontSize: '1.25rem' }}>📱</span>
-                {t('online')} (UPI/GPay)
-              </button>
-
-              <button
-                style={{
-                  flex: 1,
-                  background: 'rgba(201, 162, 75, 0.15)',
-                  border: '2px solid var(--brass-500)',
-                  color: 'var(--brass-300)',
-                  borderRadius: 'var(--radius-md)',
-                  padding: '16px 12px',
-                  fontWeight: 700,
-                  fontSize: '0.95rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 6,
-                  transition: 'all 0.15s ease',
-                }}
-                onClick={() => handleConfirmPaymentMethod('offline')}
-              >
-                <span style={{ fontSize: '1.25rem' }}>💵</span>
-                {t('offline')} (Cash)
-              </button>
-            </div>
-
-            <button
-              style={{
-                background: 'transparent',
-                border: '1px solid var(--felt-500)',
-                color: 'var(--chalk-400)',
-                borderRadius: 'var(--radius-sm)',
-                padding: '10px 0',
-                fontSize: '0.85rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                marginTop: 8,
-              }}
-              onClick={() => setPaymentMethodPrompt(null)}
-            >
-              {t('cancel')}
-            </button>
-          </div>
-        </Modal>
+          onConfirm={handleConfirmPaymentMethod}
+          lang={lang}
+          t={t}
+        />
       )}
 
       {outstandingDetailPlayer && (
@@ -1231,3 +1172,260 @@ const styles = {
     fontWeight: 500,
   },
 };
+
+function PaymentSettlementModal({ prompt, onClose, onConfirm, lang, t }) {
+  const [customers, setCustomers] = useState([]);
+  const [mode, setMode] = useState('single');
+  const [walletAmt, setWalletAmt] = useState('');
+  const [onlineAmt, setOnlineAmt] = useState('');
+  const [offlineAmt, setOfflineAmt] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [modalErr, setModalErr] = useState('');
+
+  useEffect(() => {
+    customersApi.list()
+      .then((res) => setCustomers(res.data || []))
+      .catch((err) => console.error('Could not load customers', err));
+  }, []);
+
+  const totalRequired = prompt.amount || 0;
+  const customer = customers.find(c =>
+    (c.display_name || '').toLowerCase().trim() === (prompt.playerName || '').toLowerCase().trim()
+  );
+  const availableWallet = customer ? (customer.wallet_balance || 0) : 0;
+
+  const handleQuickPay = async (method) => {
+    setModalErr('');
+    if (method === 'wallet') {
+      if (!customer) {
+        setModalErr('No registered customer profile found for wallet payment.');
+        return;
+      }
+      if (availableWallet < totalRequired) {
+        setModalErr(`Insufficient wallet balance (Available: ₹${availableWallet.toFixed(2)}).`);
+        return;
+      }
+    }
+    setSubmitting(true);
+    await onConfirm({ payment_method: method, wallet_amount: method === 'wallet' ? totalRequired : 0 });
+    setSubmitting(false);
+  };
+
+  const handleConfirmSplit = async () => {
+    setModalErr('');
+    const w = Number(walletAmt) || 0;
+    const o = Number(onlineAmt) || 0;
+    const off = Number(offlineAmt) || 0;
+
+    if (Math.round((w + o + off) * 100) !== Math.round(totalRequired * 100)) {
+      setModalErr(`Entered amounts sum to ₹${(w + o + off).toFixed(2)}, which must equal total due ₹${totalRequired.toFixed(2)}.`);
+      return;
+    }
+
+    if (w > 0) {
+      if (!customer) {
+        setModalErr('No registered customer profile found for wallet payment.');
+        return;
+      }
+      if (availableWallet < w) {
+        setModalErr(`Wallet amount ₹${w.toFixed(2)} exceeds available balance (₹${availableWallet.toFixed(2)}).`);
+        return;
+      }
+    }
+
+    setSubmitting(true);
+    await onConfirm({
+      payment_method: 'split',
+      wallet_amount: w,
+      online_amount: o,
+      offline_amount: off,
+    });
+    setSubmitting(false);
+  };
+
+  return (
+    <Modal title={t('selectPaymentMethod')} onClose={onClose} width={460}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ background: 'var(--felt-900)', padding: '12px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--felt-600)' }}>
+          <p style={{ color: 'var(--chalk-200)', fontSize: '0.9rem', margin: 0, lineHeight: 1.5 }}>
+            {lang === 'hi' ? 'भुगतान की पुष्टि: ' : lang === 'pb' ? 'ਭੁਗਤਾਨ ਦੀ ਪੁਸ਼ਟੀ: ' : 'Confirming payment of '}
+            <strong>₹{totalRequired.toFixed(2)}</strong> {lang === 'hi' ? 'के लिए ' : lang === 'pb' ? 'ਲਈ ' : 'for '}
+            <strong>{prompt.playerName}</strong>.
+          </p>
+          {customer && (
+            <div style={{ marginTop: 6, fontSize: '0.82rem', color: availableWallet > 0 ? 'var(--brass-300)' : 'var(--chalk-400)', fontWeight: 600 }}>
+              👛 Customer Wallet Balance: ₹{availableWallet.toFixed(2)}
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: availableWallet >= 1 ? '1fr 1fr' : '1fr 1fr', gap: 10 }}>
+          <button
+            type="button"
+            style={{
+              background: 'rgba(79, 70, 229, 0.15)',
+              border: '2px solid #4F46E5',
+              color: '#818CF8',
+              borderRadius: 'var(--radius-md)',
+              padding: '14px 8px',
+              fontWeight: 700,
+              fontSize: '0.92rem',
+              cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 4,
+            }}
+            onClick={() => handleQuickPay('online')}
+            disabled={submitting}
+          >
+            <span style={{ fontSize: '1.25rem' }}>📱</span>
+            {t('online')} (UPI)
+          </button>
+
+          <button
+            type="button"
+            style={{
+              background: 'rgba(201, 162, 75, 0.15)',
+              border: '2px solid var(--brass-500)',
+              color: 'var(--brass-300)',
+              borderRadius: 'var(--radius-md)',
+              padding: '14px 8px',
+              fontWeight: 700,
+              fontSize: '0.92rem',
+              cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 4,
+            }}
+            onClick={() => handleQuickPay('offline')}
+            disabled={submitting}
+          >
+            <span style={{ fontSize: '1.25rem' }}>💵</span>
+            {t('offline')} (Cash)
+          </button>
+
+          {availableWallet >= 1 && (
+            <>
+              <button
+                type="button"
+                style={{
+                  background: 'rgba(47, 158, 99, 0.15)',
+                  border: '2px solid var(--green-go)',
+                  color: 'var(--green-go)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '14px 8px',
+                  fontWeight: 700,
+                  fontSize: '0.92rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+                onClick={() => handleQuickPay('wallet')}
+                disabled={submitting}
+              >
+                <span style={{ fontSize: '1.25rem' }}>👛</span>
+                {t('payWithWallet')}
+              </button>
+
+              <button
+                type="button"
+                style={{
+                  background: mode === 'split' ? 'rgba(217, 123, 43, 0.25)' : 'rgba(217, 123, 43, 0.15)',
+                  border: '2px solid var(--orange-warn)',
+                  color: 'var(--orange-warn)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '14px 8px',
+                  fontWeight: 700,
+                  fontSize: '0.92rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+                onClick={() => {
+                  setMode(mode === 'split' ? 'single' : 'split');
+                  if (availableWallet > 0) {
+                    const w = Math.min(availableWallet, totalRequired);
+                    setWalletAmt(String(w));
+                    setOnlineAmt(String(Math.round((totalRequired - w) * 100) / 100));
+                    setOfflineAmt('0');
+                  } else {
+                    setWalletAmt('0');
+                    setOnlineAmt(String(totalRequired));
+                    setOfflineAmt('0');
+                  }
+                }}
+              >
+                <span style={{ fontSize: '1.25rem' }}>🔀</span>
+                {t('splitPayment')}
+              </button>
+            </>
+          )}
+        </div>
+
+        {mode === 'split' && (
+          <div style={{ background: 'var(--felt-900)', padding: 14, borderRadius: 'var(--radius-sm)', display: 'flex', flexDirection: 'column', gap: 10, border: '1px solid var(--felt-600)' }}>
+            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--chalk-200)' }}>Split Breakdown:</div>
+            
+            <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem', color: 'var(--chalk-300)' }}>
+              <span>👛 Wallet (Max ₹{availableWallet.toFixed(2)}):</span>
+              <input
+                type="number"
+                style={{ width: 100, background: 'var(--felt-800)', border: '1px solid var(--felt-500)', color: 'var(--chalk-100)', padding: '6px 8px', borderRadius: 4 }}
+                value={walletAmt}
+                onChange={(e) => setWalletAmt(e.target.value)}
+              />
+            </label>
+
+            <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem', color: 'var(--chalk-300)' }}>
+              <span>📱 Online (UPI):</span>
+              <input
+                type="number"
+                style={{ width: 100, background: 'var(--felt-800)', border: '1px solid var(--felt-500)', color: 'var(--chalk-100)', padding: '6px 8px', borderRadius: 4 }}
+                value={onlineAmt}
+                onChange={(e) => setOnlineAmt(e.target.value)}
+              />
+            </label>
+
+            <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem', color: 'var(--chalk-300)' }}>
+              <span>💵 Offline (Cash):</span>
+              <input
+                type="number"
+                style={{ width: 100, background: 'var(--felt-800)', border: '1px solid var(--felt-500)', color: 'var(--chalk-100)', padding: '6px 8px', borderRadius: 4 }}
+                value={offlineAmt}
+                onChange={(e) => setOfflineAmt(e.target.value)}
+              />
+            </label>
+
+            <button
+              type="button"
+              style={{ background: 'var(--brass-500)', color: 'var(--ink-900)', border: 'none', borderRadius: 'var(--radius-sm)', padding: '10px 0', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', marginTop: 4 }}
+              onClick={handleConfirmSplit}
+              disabled={submitting}
+            >
+              Confirm Split Payment
+            </button>
+          </div>
+        )}
+
+        {modalErr && (
+          <div style={{ background: 'rgba(139, 38, 53, 0.2)', border: '1px solid var(--rail-600)', color: 'var(--rail-300)', padding: '10px 12px', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem' }}>
+            {modalErr}
+          </div>
+        )}
+
+        <button
+          style={{ background: 'transparent', border: '1px solid var(--felt-500)', color: 'var(--chalk-400)', borderRadius: 'var(--radius-sm)', padding: '10px 0', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
+          onClick={onClose}
+        >
+          {t('cancel')}
+        </button>
+      </div>
+    </Modal>
+  );
+}

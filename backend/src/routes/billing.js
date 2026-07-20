@@ -2,6 +2,7 @@ import { Router } from 'express';
 import GameSession from '../models/GameSession.js';
 import Asset from '../models/Asset.js';
 import Customer from '../models/Customer.js';
+import WalletTransaction from '../models/WalletTransaction.js';
 import { requireAuth } from '../middleware/auth.js';
 import { serializeBillingRecord, serializeSessionDetail } from '../utils/serializers.js';
 import { getOrCreateCustomer } from '../utils/customerHelper.js';
@@ -20,13 +21,13 @@ function computeTimeAmount(session, asset) {
   return { minutes: Math.round(minutes * 100) / 100, amount: Math.round(minutes * perMinute * 100) / 100 };
 }
 
-/** Resolve the asset label for a session - from linked asset or override */
-async function resolveLabel(session) {
+/** Resolve the asset label and hourly rate for a session - from linked asset or override */
+async function resolveLabelAndRate(session) {
   if (session.assetId) {
-    const asset = await Asset.findOne({ _id: session.assetId, clubId: session.clubId }).select('label');
-    if (asset) return asset.label;
+    const asset = await Asset.findOne({ _id: session.assetId, clubId: session.clubId }).select('label hourlyRate');
+    if (asset) return { label: asset.label, hourlyRate: asset.hourlyRate };
   }
-  return session.assetLabelOverride || 'Manual Entry';
+  return { label: session.assetLabelOverride || 'Manual Entry', hourlyRate: null };
 }
 
 /**
@@ -271,8 +272,8 @@ router.post('/:sessionId/done', requireAuth, async (req, res) => {
       await session.save();
     }
 
-    const label = await resolveLabel(session);
-    return res.json(serializeBillingRecord(session, label));
+    const { label, hourlyRate } = await resolveLabelAndRate(session);
+    return res.json(serializeBillingRecord(session, label, hourlyRate));
   } catch (err) {
     console.error('POST /billing/:id/done', err);
     return res.status(500).json({ detail: 'Internal server error' });
@@ -287,8 +288,8 @@ router.get('/records', requireAuth, async (req, res) => {
     const sessions = await GameSession.find({ clubId: req.admin.clubId, status: 'billed' }).sort({ serialNumber: -1 });
 
     const result = await Promise.all(sessions.map(async (s) => {
-      const label = await resolveLabel(s);
-      return serializeBillingRecord(s, label);
+      const { label, hourlyRate } = await resolveLabelAndRate(s);
+      return serializeBillingRecord(s, label, hourlyRate);
     }));
 
     return res.json(result);
@@ -306,17 +307,78 @@ router.post('/:sessionId/paid', requireAuth, async (req, res) => {
     const session = await GameSession.findOne({ _id: req.params.sessionId, clubId: req.admin.clubId });
     if (!session) return res.status(404).json({ detail: 'Session not found' });
 
-    const { payment_method } = req.body || {};
+    const { payment_method, wallet_amount, online_amount, offline_amount } = req.body || {};
+    const method = ['online', 'offline', 'wallet', 'split'].includes(payment_method) ? payment_method : 'offline';
+
+    const billTotal = session.totalAmount ?? 0;
+    let wAmt = 0;
+    let oAmt = 0;
+    let offAmt = 0;
+
+    if (method === 'wallet') {
+      wAmt = billTotal;
+    } else if (method === 'online') {
+      oAmt = billTotal;
+    } else if (method === 'offline') {
+      offAmt = billTotal;
+    } else if (method === 'split') {
+      wAmt = Math.max(0, Number(wallet_amount) || 0);
+      oAmt = Math.max(0, Number(online_amount) || 0);
+      offAmt = Math.max(0, Number(offline_amount) || 0);
+      if (Math.round((wAmt + oAmt + offAmt) * 100) !== Math.round(billTotal * 100)) {
+        return res.status(400).json({ detail: `Split payment amounts (₹${(wAmt + oAmt + offAmt).toFixed(2)}) must equal Total Amount (₹${billTotal.toFixed(2)})` });
+      }
+    }
+
+    if (wAmt > 0) {
+      // Deduct from customer's wallet
+      let customer = null;
+      if (session.players && session.players.length > 0) {
+        const player = session.players.find(p => p.isPayer) || session.players[0];
+        if (player.customerId) {
+          customer = await Customer.findOne({ _id: player.customerId, clubId: req.admin.clubId });
+        }
+        if (!customer && player.displayName) {
+          customer = await Customer.findOne({ clubId: req.admin.clubId, displayName: player.displayName });
+        }
+      }
+
+      if (!customer) {
+        return res.status(400).json({ detail: 'No registered customer found for wallet deduction.' });
+      }
+
+      const available = customer.walletBalance || 0;
+      if (available < wAmt) {
+        return res.status(400).json({ detail: `Insufficient wallet balance for ${customer.displayName}. Available: ₹${available.toFixed(2)}, Required: ₹${wAmt.toFixed(2)}` });
+      }
+
+      const newBalance = Math.round((available - wAmt) * 100) / 100;
+      customer.walletBalance = newBalance;
+      await customer.save();
+
+      await WalletTransaction.create({
+        clubId: req.admin.clubId,
+        customerId: customer._id,
+        type: 'debit',
+        amount: wAmt,
+        balanceAfter: newBalance,
+        description: `Bill #${session.serialNumber} Payment`,
+        sessionId: session._id,
+        paymentMethod: method,
+      });
+    }
+
     session.paymentStatus = 'paid';
-    session.paidAmount    = session.totalAmount;
+    session.paidAmount    = billTotal;
     session.pendingAmount = 0;
-    session.paymentMethod = (payment_method && ['online', 'offline'].includes(payment_method))
-      ? payment_method
-      : 'offline';
+    session.paymentMethod = method;
+    session.walletPaidAmount = wAmt;
+    session.onlinePaidAmount = oAmt;
+    session.offlinePaidAmount = offAmt;
     await session.save();
 
-    const label = await resolveLabel(session);
-    return res.json(serializeBillingRecord(session, label));
+    const { label, hourlyRate } = await resolveLabelAndRate(session);
+    return res.json(serializeBillingRecord(session, label, hourlyRate));
   } catch (err) {
     console.error('POST /billing/:id/paid', err);
     return res.status(500).json({ detail: 'Internal server error' });
@@ -346,8 +408,8 @@ router.post('/:sessionId/unpaid', requireAuth, async (req, res) => {
     session.pendingAmount = pending;
     await session.save();
 
-    const label = await resolveLabel(session);
-    return res.json(serializeBillingRecord(session, label));
+    const { label, hourlyRate } = await resolveLabelAndRate(session);
+    return res.json(serializeBillingRecord(session, label, hourlyRate));
   } catch (err) {
     console.error('POST /billing/:id/unpaid', err);
     return res.status(500).json({ detail: 'Internal server error' });
@@ -362,7 +424,7 @@ router.get('/:sessionId/detail', requireAuth, async (req, res) => {
     const session = await GameSession.findOne({ _id: req.params.sessionId, clubId: req.admin.clubId });
     if (!session) return res.status(404).json({ detail: 'Session not found' });
 
-    const label = await resolveLabel(session);
+    const { label } = await resolveLabelAndRate(session);
     return res.json(serializeSessionDetail(session, label));
   } catch (err) {
     console.error('GET /billing/:id/detail', err);
@@ -430,8 +492,8 @@ router.put('/:sessionId/edit', requireAuth, async (req, res) => {
     session.lastEditedAt = new Date();
     await session.save();
 
-    const label = await resolveLabel(session);
-    return res.json(serializeBillingRecord(session, label));
+    const { label, hourlyRate } = await resolveLabelAndRate(session);
+    return res.json(serializeBillingRecord(session, label, hourlyRate));
   } catch (err) {
     console.error('PUT /billing/:id/edit', err);
     return res.status(500).json({ detail: 'Internal server error' });

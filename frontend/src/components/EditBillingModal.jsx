@@ -39,11 +39,71 @@ export default function EditBillingModal({ record, onClose, onSaved }) {
       .catch((err) => console.error('Could not load customers', err));
   }, []);
 
+  const getHourlyRate = () => {
+    if (record.hourly_rate && record.hourly_rate > 0) {
+      return record.hourly_rate;
+    }
+    const initialTimeAmt = record.time_amount != null
+      ? record.time_amount
+      : Math.max(0, (record.total_amount || 0) - (record.food_amount || 0));
+    const initialMins = (record.start_time && record.stop_time)
+      ? (new Date(record.stop_time) - new Date(record.start_time)) / 60000
+      : 0;
+    if (initialMins > 0 && initialTimeAmt > 0) {
+      return (initialTimeAmt / initialMins) * 60;
+    }
+    return 0;
+  };
+
+  const updateAmountsForTimeOrFood = (newStartIsoStr, newStopIsoStr, currentFoodStr, currentPaymentStatus = paymentStatus) => {
+    if (!newStartIsoStr || !newStopIsoStr) return;
+    const startDt = new Date(newStartIsoStr);
+    const stopDt = new Date(newStopIsoStr);
+    if (isNaN(startDt.getTime()) || isNaN(stopDt.getTime())) return;
+
+    const mins = Math.max(0, (stopDt - startDt) / 60000);
+    const hourlyRate = getHourlyRate();
+    const perMinute = hourlyRate / 60;
+    const timeCharge = Math.round(mins * perMinute * 100) / 100;
+    const foodVal = Number(currentFoodStr) || 0;
+    const computedTotal = Math.round((timeCharge + foodVal) * 100) / 100;
+
+    const totalStr = String(computedTotal);
+    setTotalAmount(totalStr);
+
+    if (currentPaymentStatus === 'paid') {
+      setPaidAmount(totalStr);
+      setPendingAmount('0');
+    } else {
+      const currentPaid = Number(paidAmount) || 0;
+      setPendingAmount(String(Math.max(0, Math.round((computedTotal - currentPaid) * 100) / 100)));
+    }
+  };
+
+  const handleStartTimeChange = (value) => {
+    setStartTime(value);
+    updateAmountsForTimeOrFood(value, stopTime, foodAmount);
+  };
+
+  const handleStopTimeChange = (value) => {
+    setStopTime(value);
+    updateAmountsForTimeOrFood(startTime, value, foodAmount);
+  };
+
+  const handleFoodAmountChange = (value) => {
+    setFoodAmount(value);
+    updateAmountsForTimeOrFood(startTime, stopTime, value);
+  };
+
   const handleTotalChange = (value) => {
     setTotalAmount(value);
     if (paymentStatus === 'paid') {
       setPaidAmount(value);
       setPendingAmount('0');
+    } else {
+      const totalNum = Number(value) || 0;
+      const paidNum = Number(paidAmount) || 0;
+      setPendingAmount(String(Math.max(0, Math.round((totalNum - paidNum) * 100) / 100)));
     }
   };
 
@@ -102,7 +162,7 @@ export default function EditBillingModal({ record, onClose, onSaved }) {
               style={styles.input}
               type="datetime-local"
               value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
+              onChange={(e) => handleStartTimeChange(e.target.value)}
             />
           </Field>
           <Field label={t('stopTimeLabel')}>
@@ -110,7 +170,7 @@ export default function EditBillingModal({ record, onClose, onSaved }) {
               style={styles.input}
               type="datetime-local"
               value={stopTime}
-              onChange={(e) => setStopTime(e.target.value)}
+              onChange={(e) => handleStopTimeChange(e.target.value)}
             />
           </Field>
         </div>
@@ -121,7 +181,7 @@ export default function EditBillingModal({ record, onClose, onSaved }) {
               style={styles.input}
               type="number"
               value={foodAmount}
-              onChange={(e) => setFoodAmount(e.target.value)}
+              onChange={(e) => handleFoodAmountChange(e.target.value)}
             />
           </Field>
           <Field label={t('totalAmountLabel')}>
@@ -150,7 +210,17 @@ export default function EditBillingModal({ record, onClose, onSaved }) {
             <button
               type="button"
               style={{ ...styles.segmentBtn, ...(paymentStatus === 'unpaid' ? styles.segmentActiveUnpaid : {}) }}
-              onClick={() => setPaymentStatus('unpaid')}
+              onClick={() => {
+                setPaymentStatus('unpaid');
+                const totalNum = Number(totalAmount) || 0;
+                const paidNum = Number(paidAmount) || 0;
+                if (paidNum >= totalNum) {
+                  setPaidAmount('0');
+                  setPendingAmount(totalAmount);
+                } else {
+                  setPendingAmount(String(Math.max(0, Math.round((totalNum - paidNum) * 100) / 100)));
+                }
+              }}
             >
               {t('unpaid')}
             </button>
