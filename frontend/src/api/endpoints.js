@@ -59,7 +59,7 @@ export const revenueApi = {
 
 export const customersApi = {
   list: () => api.get('/customers'),
-  create: (data) => api.post('/customers', data),
+  create: (data) => api.post('/customers/create', data),
   remove: (id) => api.delete(`/customers/${id}`),
   walletSummary: () => api.get('/customers/wallet/summary'),
   addWalletMoney: (id, amount, paymentMethod, note) =>

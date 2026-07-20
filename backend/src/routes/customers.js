@@ -9,10 +9,10 @@ import WalletTransaction from '../models/WalletTransaction.js';
 const router = Router();
 
 /**
- * POST /customers
+ * POST /customers & POST /customers/create
  * Create a new customer manually (with optional initial advance payment).
  */
-router.post('/', requireAuth, async (req, res) => {
+const handleCreateCustomer = async (req, res) => {
   try {
     const { display_name, initial_advance, payment_method, note } = req.body || {};
     if (!display_name || !display_name.trim()) {
@@ -43,7 +43,10 @@ router.post('/', requireAuth, async (req, res) => {
     console.error('POST /customers', err);
     return res.status(500).json({ detail: 'Internal server error' });
   }
-});
+};
+
+router.post('/', requireAuth, handleCreateCustomer);
+router.post('/create', requireAuth, handleCreateCustomer);
 
 /**
  * GET /customers
