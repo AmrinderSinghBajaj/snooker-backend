@@ -9,6 +9,7 @@ export default function StartGameModal({ asset, onClose, onStarted }) {
   const [customers, setCustomers] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [isCustomTimeTouched, setIsCustomTimeTouched] = useState(false);
   const [startTime, setStartTime] = useState(() => {
     const now = new Date();
     const hh = String(now.getHours()).padStart(2, '0');
@@ -46,21 +47,27 @@ export default function StartGameModal({ asset, onClose, onStarted }) {
     setSubmitting(true);
     setError('');
     try {
-      const [hours, minutes] = startTime.split(':').map(Number);
-      const startDate = new Date();
-      startDate.setHours(hours, minutes, 0, 0);
+      let startTimeIso = null;
 
-      const now = new Date();
-      const diffMs = startDate.getTime() - now.getTime();
-      if (diffMs > 30 * 60 * 1000) {
-        // More than 30 minutes in the future -> assume it started yesterday (cross-midnight)
-        startDate.setDate(startDate.getDate() - 1);
-      } else if (diffMs > 0) {
-        // Small future drift -> cap it to current time
-        startDate.setTime(now.getTime());
+      // Only pass custom past start time if the owner explicitly edited the time input
+      if (isCustomTimeTouched && startTime) {
+        const [hours, minutes] = startTime.split(':').map(Number);
+        const startDate = new Date();
+        startDate.setHours(hours, minutes, 0, 0);
+
+        const now = new Date();
+        const diffMs = startDate.getTime() - now.getTime();
+        if (diffMs > 30 * 60 * 1000) {
+          // More than 30 minutes in the future -> assume it started yesterday (cross-midnight)
+          startDate.setDate(startDate.getDate() - 1);
+        } else if (diffMs > 0) {
+          // Small future drift -> cap it to current time
+          startDate.setTime(now.getTime());
+        }
+        startTimeIso = startDate.toISOString();
       }
 
-      await onStarted(cleaned, startDate.toISOString());
+      await onStarted(cleaned, startTimeIso);
     } catch (err) {
       setError(err.response?.data?.detail || t('couldNotStartGame'));
     } finally {
@@ -97,12 +104,23 @@ export default function StartGameModal({ asset, onClose, onStarted }) {
         )}
 
         <div style={{ marginBottom: 18 }}>
-          <label style={styles.label}>{t('startTimeLabel')}</label>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <label style={{ ...styles.label, marginBottom: 0 }}>{t('startTimeLabel')}</label>
+            <span style={{ fontSize: '0.78rem', color: isCustomTimeTouched ? 'var(--brass-300)' : 'var(--chalk-400)', fontWeight: 600 }}>
+              {isCustomTimeTouched ? '⚡ Custom Past Time Active' : '📍 Starts Now (00:00)'}
+            </span>
+          </div>
           <input
             type="time"
-            style={styles.timeInput}
+            style={{
+              ...styles.timeInput,
+              borderColor: isCustomTimeTouched ? 'var(--brass-500)' : 'var(--felt-500)',
+            }}
             value={startTime}
-            onChange={(e) => setStartTime(e.target.value)}
+            onChange={(e) => {
+              setStartTime(e.target.value);
+              setIsCustomTimeTouched(true);
+            }}
             required
           />
         </div>
