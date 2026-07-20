@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import Modal from './Modal';
-import { billingApi, customersApi } from '../api/endpoints';
+import { billingApi, customersApi, assetsApi } from '../api/endpoints';
 import { useTranslation } from '../utils/translations';
 
 /*
@@ -18,6 +18,8 @@ export default function ManualEntryModal({ onClose, onSaved }) {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   };
 
+  const [assets, setAssets] = useState([]);
+  const [selectedAssetId, setSelectedAssetId] = useState('');
   const [assetLabel, setAssetLabel] = useState('');
   const [playerNamesText, setPlayerNamesText] = useState('');
   const [startTime, setStartTime] = useState(toLocalInput(defaultStart));
@@ -36,7 +38,78 @@ export default function ManualEntryModal({ onClose, onSaved }) {
     customersApi.list()
       .then((res) => setCustomers(res.data))
       .catch((err) => console.error('Could not load customers', err));
+
+    assetsApi.list()
+      .then((res) => {
+        const list = res.data || [];
+        setAssets(list);
+        if (list.length > 0) {
+          setSelectedAssetId(list[0].id);
+          setAssetLabel(list[0].label);
+          // Initial auto-calculate with default 30 min duration & first asset rate
+          const mins = 30;
+          const rate = Number(list[0].hourly_rate) || 0;
+          const initialCharge = Math.round((mins * (rate / 60)) * 100) / 100;
+          const initStr = String(initialCharge);
+          setTotalAmount(initStr);
+          setPendingAmount(initStr);
+        }
+      })
+      .catch((err) => console.error('Could not load assets', err));
   }, []);
+
+  const autoCalculateTotal = (newStart, newStop, newFood, currentAssetId = selectedAssetId) => {
+    if (!newStart || !newStop) return;
+    const startDt = new Date(newStart);
+    const stopDt = new Date(newStop);
+    if (isNaN(startDt.getTime()) || isNaN(stopDt.getTime()) || stopDt <= startDt) return;
+
+    const foundAsset = assets.find(a => a.id === currentAssetId);
+    if (!foundAsset || !foundAsset.hourly_rate) return;
+
+    const mins = Math.max(0, (stopDt - startDt) / 60000);
+    const hourlyRate = Number(foundAsset.hourly_rate);
+    const perMin = hourlyRate / 60;
+    const timeCharge = Math.round(mins * perMin * 100) / 100;
+    const foodVal = Number(newFood) || 0;
+    const computedTotal = Math.round((timeCharge + foodVal) * 100) / 100;
+
+    const totalStr = String(computedTotal);
+    setTotalAmount(totalStr);
+
+    if (paymentStatus === 'paid') {
+      setPaidAmount(totalStr);
+      setPendingAmount('0');
+    } else {
+      setPendingAmount(totalStr);
+      setPaidAmount('0');
+    }
+  };
+
+  const handleTableSelect = (e) => {
+    const id = e.target.value;
+    setSelectedAssetId(id);
+    const asset = assets.find(a => a.id === id);
+    if (asset) {
+      setAssetLabel(asset.label);
+      autoCalculateTotal(startTime, stopTime, foodAmount, id);
+    }
+  };
+
+  const handleStartTimeChange = (val) => {
+    setStartTime(val);
+    autoCalculateTotal(val, stopTime, foodAmount);
+  };
+
+  const handleStopTimeChange = (val) => {
+    setStopTime(val);
+    autoCalculateTotal(startTime, val, foodAmount);
+  };
+
+  const handleFoodAmountChange = (val) => {
+    setFoodAmount(val);
+    autoCalculateTotal(startTime, stopTime, val);
+  };
 
   const handleTotalChange = (value) => {
     setTotalAmount(value);
@@ -117,12 +190,26 @@ export default function ManualEntryModal({ onClose, onSaved }) {
         </p>
 
         <Field label={t('tableOrLabel')}>
-          <input
-            style={styles.input}
-            value={assetLabel}
-            onChange={(e) => setAssetLabel(e.target.value)}
-            placeholder={t('tableOrLabelPlaceholder')}
-          />
+          {assets.length > 0 ? (
+            <select
+              style={styles.input}
+              value={selectedAssetId}
+              onChange={handleTableSelect}
+            >
+              {assets.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.label} (₹{a.hourly_rate}/hr)
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              style={styles.input}
+              value={assetLabel}
+              onChange={(e) => setAssetLabel(e.target.value)}
+              placeholder={t('tableOrLabelPlaceholder')}
+            />
+          )}
         </Field>
 
         <Field label={t('playerNamesLabel')}>
@@ -141,7 +228,7 @@ export default function ManualEntryModal({ onClose, onSaved }) {
               style={styles.input}
               type="datetime-local"
               value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
+              onChange={(e) => handleStartTimeChange(e.target.value)}
             />
           </Field>
           <Field label={t('stopTimeLabel')}>
@@ -149,7 +236,7 @@ export default function ManualEntryModal({ onClose, onSaved }) {
               style={styles.input}
               type="datetime-local"
               value={stopTime}
-              onChange={(e) => setStopTime(e.target.value)}
+              onChange={(e) => handleStopTimeChange(e.target.value)}
             />
           </Field>
         </div>
@@ -160,7 +247,7 @@ export default function ManualEntryModal({ onClose, onSaved }) {
               style={styles.input}
               type="number"
               value={foodAmount}
-              onChange={(e) => setFoodAmount(e.target.value)}
+              onChange={(e) => handleFoodAmountChange(e.target.value)}
             />
           </Field>
           <Field label={t('totalAmountLabel')}>
