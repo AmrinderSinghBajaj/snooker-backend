@@ -89,6 +89,42 @@ input, select, textarea {
   font-family: var(--font-body);
 }
 
+/* ── Custom Dark Date/Time Inputs & Pickers ─────────────────────────── */
+input[type="time"],
+input[type="date"],
+input[type="datetime-local"] {
+  color-scheme: dark !important;
+  background-color: var(--felt-800) !important;
+  color: var(--chalk-100) !important;
+  border: 1px solid var(--felt-500) !important;
+  border-radius: var(--radius-sm) !important;
+  padding: 10px 12px !important;
+  font-family: var(--font-body) !important;
+  font-size: 0.9rem !important;
+  accent-color: var(--brass-500) !important;
+}
+
+input[type="time"]:focus,
+input[type="date"]:focus,
+input[type="datetime-local"]:focus {
+  border-color: var(--brass-500) !important;
+  box-shadow: 0 0 0 2px rgba(201, 162, 75, 0.25) !important;
+  outline: none !important;
+}
+
+::-webkit-calendar-picker-indicator {
+  filter: invert(0.85) sepia(0.5) saturate(3) hue-rotate(5deg) !important;
+  cursor: pointer !important;
+  padding: 4px !important;
+  border-radius: 4px !important;
+  transition: transform 0.15s ease, filter 0.15s ease !important;
+}
+
+::-webkit-calendar-picker-indicator:hover {
+  filter: invert(0.95) sepia(1) saturate(5) hue-rotate(5deg) !important;
+  transform: scale(1.15) !important;
+}
+
 ::selection {
   background: var(--brass-500);
   color: var(--ink-900);

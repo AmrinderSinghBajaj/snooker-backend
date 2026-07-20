@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import Modal from './Modal';
+import TimePresetPicker from './TimePresetPicker';
 import { customersApi } from '../api/endpoints';
 import { useTranslation } from '../utils/translations';
 
@@ -96,16 +97,11 @@ export default function StartGameModal({ asset, onClose, onStarted }) {
           </button>
         )}
 
-        <div style={{ marginBottom: 18 }}>
-          <label style={styles.label}>{t('startTimeLabel')}</label>
-          <input
-            type="time"
-            style={{ ...styles.input, width: '100%', boxSizing: 'border-box' }}
-            value={startTime}
-            onChange={(e) => setStartTime(e.target.value)}
-            required
-          />
-        </div>
+        <TimePresetPicker
+          value={startTime}
+          onChange={setStartTime}
+          label={t('startTimeLabel')}
+        />
 
         <datalist id="customer-suggestions">
           {customers.map((c) => (
