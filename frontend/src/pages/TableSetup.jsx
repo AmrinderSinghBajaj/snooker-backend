@@ -19,6 +19,7 @@ export default function TableSetup() {
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [category, setCategory] = useState(CATEGORIES[0]);
+  const [customLabel, setCustomLabel] = useState('');
   const [hourlyRate, setHourlyRate] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -52,8 +53,13 @@ export default function TableSetup() {
     }
     setSubmitting(true);
     try {
-      await assetsApi.create({ category, hourly_rate: Number(hourlyRate) });
+      await assetsApi.create({
+        category,
+        label: customLabel.trim() || undefined,
+        hourly_rate: Number(hourlyRate),
+      });
       setShowAddModal(false);
+      setCustomLabel('');
       setHourlyRate('');
       loadAssets();
       setToast(t('tableDeviceAdded'));
@@ -209,6 +215,17 @@ export default function TableSetup() {
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
+
+            <label style={styles.label}>
+              {lang === 'hi' ? 'टेबल / डिवाइस का नाम (वैकल्पिक)' : lang === 'pb' ? 'ਟੇਬਲ / ਡਿਵਾਈਸ ਦਾ ਨਾਮ (ਵਿਕਲਪਿਕ)' : 'Table or Device Name / Label (Optional)'}
+            </label>
+            <input
+              style={styles.input}
+              type="text"
+              placeholder={lang === 'hi' ? 'उदा. Star Table 1, VIP Snooker A' : lang === 'pb' ? 'ਉਦਾ. Star Table 1, VIP Snooker A' : 'e.g. Star Table 1, VIP Snooker A'}
+              value={customLabel}
+              onChange={(e) => setCustomLabel(e.target.value)}
+            />
 
             <label style={styles.label}>{t('hourlyRateRs')}</label>
             <input

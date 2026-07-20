@@ -37,14 +37,18 @@ router.get('/', requireAuth, async (req, res) => {
  */
 router.post('/', requireAuth, async (req, res) => {
   try {
-    const { category, hourly_rate, image_url } = req.body;
+    const { category, label: customLabel, hourly_rate, image_url } = req.body;
     if (!ASSET_CATEGORIES.includes(category)) {
       return res.status(422).json({ detail: `Invalid category. Must be one of: ${ASSET_CATEGORIES.join(', ')}` });
     }
     if (!hourly_rate || hourly_rate <= 0) {
       return res.status(422).json({ detail: 'hourly_rate must be greater than 0' });
     }
-    const label = await nextLabel(category, req.admin.clubId);
+    const autoLabel = await nextLabel(category, req.admin.clubId);
+    const label = (customLabel && typeof customLabel === 'string' && customLabel.trim())
+      ? customLabel.trim()
+      : autoLabel;
+
     const asset = await Asset.create({
       clubId:     req.admin.clubId,
       category,
