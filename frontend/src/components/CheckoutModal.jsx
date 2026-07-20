@@ -102,12 +102,26 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
     }
   };
 
+  const handleClose = async () => {
+    if (step === 'review' && stopResult) {
+      setBusy(true);
+      try {
+        await billingApi.cancelStop(session.session_id);
+      } catch (err) {
+        console.error('Could not cancel stop:', err);
+      } finally {
+        setBusy(false);
+      }
+    }
+    onClose();
+  };
+
   const splitShare = stopResult && selectedPayers.length > 0
     ? stopResult.total_amount / selectedPayers.length
     : 0;
 
   return (
-    <Modal title={`Checkout — ${session.asset_label}`} onClose={onClose} width={460} hideClose={step === 'review' || step === 'payment'}>
+    <Modal title={`Checkout — ${session.asset_label}`} onClose={handleClose} width={460}>
       {step === 'stop' && (
         <div>
           <p style={styles.text}>
@@ -179,9 +193,19 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
 
           {error && <div style={styles.error}>{error}</div>}
 
-          <button style={styles.doneBtn} onClick={handleDone} disabled={busy}>
-            {busy ? 'Finalizing…' : 'Done — move to Billing'}
-          </button>
+          <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+            <button
+              type="button"
+              style={styles.cancelStopBtn}
+              onClick={handleClose}
+              disabled={busy}
+            >
+              ◀ Resume Game
+            </button>
+            <button style={{ ...styles.doneBtn, marginTop: 0, flex: 1.2 }} onClick={handleDone} disabled={busy}>
+              {busy ? 'Finalizing…' : 'Done — move to Billing'}
+            </button>
+          </div>
         </div>
       )}
 
@@ -332,7 +356,18 @@ const styles = {
     marginBottom: 16,
   },
   detailLine: { margin: '0 0 6px' },
-  foodList: { margin: 0, paddingLeft: 18 },
+  cancelStopBtn: {
+    flex: 1,
+    background: 'rgba(255, 255, 255, 0.08)',
+    border: '1px solid var(--felt-500)',
+    color: 'var(--chalk-200)',
+    borderRadius: 'var(--radius-sm)',
+    padding: '12px 0',
+    fontWeight: 600,
+    fontSize: '0.9rem',
+    cursor: 'pointer',
+    transition: 'all 0.15s ease',
+  },
   doneBtn: {
     width: '100%',
     background: 'var(--brass-500)',
