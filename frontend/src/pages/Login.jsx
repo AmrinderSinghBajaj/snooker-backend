@@ -43,6 +43,56 @@ export default function Login() {
     return () => clearTimeout(timer);
   }, [introDone]);
 
+  useEffect(() => {
+    const redirectMsg = sessionStorage.getItem('login_error_message');
+    if (redirectMsg) {
+      setError(redirectMsg);
+      sessionStorage.removeItem('login_error_message');
+    }
+  }, []);
+
+  const renderAlert = (msg) => {
+    if (!msg) return null;
+    
+    // Check if it is a block/disabled message with support details
+    const supportRegex = /(.+?)\s*\(Owner:\s*(.+?),\s*Email:\s*(.+?),\s*Phone:\s*(.+?)\)/;
+    const match = msg.match(supportRegex);
+    
+    if (match) {
+      const [_, title, owner, email, phone] = match;
+      return (
+        <div style={styles.premiumAlert} role="alert">
+          <div style={styles.alertHeader}>
+            <span style={styles.alertIcon}>⚠️</span>
+            <strong style={styles.alertTitle}>Account Status Notice</strong>
+          </div>
+          <p style={styles.alertText}>{title}</p>
+          <div style={styles.alertDivider}></div>
+          <div style={styles.supportDetails}>
+            <div style={styles.supportItem}>
+              <span style={styles.supportLabel}>Owner:</span>
+              <span style={styles.supportValue}>{owner}</span>
+            </div>
+            <div style={styles.supportItem}>
+              <span style={styles.supportLabel}>Email:</span>
+              <span style={styles.supportValue}>{email}</span>
+            </div>
+            <div style={styles.supportItem}>
+              <span style={styles.supportLabel}>Phone:</span>
+              <span style={styles.supportValue}>{phone}</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div style={styles.error} role="alert">
+        {msg}
+      </div>
+    );
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -128,7 +178,7 @@ export default function Login() {
               </button>
             </div>
 
-            {error && <div style={styles.error} role="alert">{error}</div>}
+            {renderAlert(error)}
 
             <button type="submit" style={styles.submitBtn} disabled={submitting}>
               {submitting ? 'Signing in…' : 'Sign in'}
@@ -285,6 +335,61 @@ const styles = {
     padding: '10px 12px',
     fontSize: '0.85rem',
     marginBottom: 16,
+  },
+  premiumAlert: {
+    background: 'rgba(139, 38, 53, 0.15)',
+    border: '1px solid var(--rail-500)',
+    borderRadius: 'var(--radius-md)',
+    padding: '16px',
+    marginBottom: 20,
+    boxShadow: '0 4px 12px rgba(139, 38, 53, 0.12)',
+  },
+  alertHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  alertIcon: {
+    fontSize: '1.1rem',
+  },
+  alertTitle: {
+    fontSize: '0.75rem',
+    color: 'var(--rail-300)',
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+  },
+  alertText: {
+    fontSize: '0.86rem',
+    color: 'var(--chalk-200)',
+    margin: '0 0 12px 0',
+    lineHeight: 1.4,
+  },
+  alertDivider: {
+    height: 1,
+    background: 'var(--rail-600)',
+    margin: '0 0 12px 0',
+    opacity: 0.4,
+  },
+  supportDetails: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+  },
+  supportItem: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    fontSize: '0.82rem',
+    gap: 12,
+  },
+  supportLabel: {
+    color: 'var(--chalk-400)',
+    fontWeight: 500,
+  },
+  supportValue: {
+    color: 'var(--chalk-100)',
+    fontWeight: 600,
   },
   introOverlay: {
     position: 'absolute',

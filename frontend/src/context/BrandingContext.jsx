@@ -84,7 +84,7 @@ export function BrandingProvider({ children }) {
     // 3. Fall back to window domain name for custom domains
     if (!detectedTenant) {
       const hostname = window.location.hostname.replace(/^www\./i, '');
-      if (hostname === 'bajajsnooker.shop' || hostname === 'bajaj.localhost') {
+      if (hostname === 'bajajsnooker.shop' || hostname === 'bajaj.localhost' || hostname === 'localhost') {
         detectedTenant = 'bajaj';
       }
     }

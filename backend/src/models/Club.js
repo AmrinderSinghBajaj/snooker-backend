@@ -10,7 +10,11 @@ const clubSchema = new mongoose.Schema({
   language: { type: String, required: true, default: 'en' },
   customDomain: { type: String, unique: true, sparse: true },
   logoUrl: { type: String, default: "" },
-  faviconUrl: { type: String, default: "" }
+  faviconUrl: { type: String, default: "" },
+  isActive: { type: Boolean, default: true, required: true },
+  expiryDate: { type: Date, default: null },
+  firstLoginAt: { type: Date, default: null },
+  trialDurationDays: { type: Number, default: null }
 }, { timestamps: true });
 
 export default mongoose.model('Club', clubSchema);

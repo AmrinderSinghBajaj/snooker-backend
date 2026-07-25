@@ -32,6 +32,7 @@ router.get('/', resolveTenant, (req, res) => {
     theme_primary:    club.themePrimary,
     theme_secondary:  club.themeSecondary,
     language:         club.language || 'en',
+    expiry_date:      club.expiryDate,
   });
 });
 
@@ -71,6 +72,7 @@ router.put('/settings', requireAuth, async (req, res) => {
       theme_primary:    club.themePrimary,
       theme_secondary:  club.themeSecondary,
       language:         club.language,
+      expiry_date:      club.expiryDate,
     });
   } catch (err) {
     console.error('PUT /branding/settings error:', err);
@@ -84,19 +86,34 @@ router.put('/settings', requireAuth, async (req, res) => {
  */
 router.get('/logo', resolveTenant, (req, res) => {
   const club = req.club;
-  const specificLogoPath = path.join(__dirname, `../../static/logo_${club.subdomain}.png`);
-  const defaultLogoPath = path.join(__dirname, `../../static/logo.png`);
+  
+  const extensions = ['png', 'jpg', 'jpeg', 'webp', 'svg', 'gif'];
+  let targetPath = null;
+  
+  for (const ext of extensions) {
+    const p = path.join(__dirname, `../../static/logo_${club.subdomain}.${ext}`);
+    if (existsSync(p)) {
+      targetPath = p;
+      break;
+    }
+  }
 
-  let targetPath = specificLogoPath;
-  if (!existsSync(targetPath)) {
-    targetPath = defaultLogoPath;
+  if (!targetPath) {
+    targetPath = path.join(__dirname, `../../static/logo.png`);
   }
 
   if (!existsSync(targetPath)) {
     return res.status(404).json({ detail: 'No logo configured' });
   }
 
-  res.setHeader('Content-Type', 'image/png');
+  const ext = path.extname(targetPath).substring(1).toLowerCase();
+  let contentType = 'image/png';
+  if (ext === 'jpg' || ext === 'jpeg') contentType = 'image/jpeg';
+  if (ext === 'webp') contentType = 'image/webp';
+  if (ext === 'svg') contentType = 'image/svg+xml';
+  if (ext === 'gif') contentType = 'image/gif';
+
+  res.setHeader('Content-Type', contentType);
   res.setHeader('Cache-Control', 'public, max-age=3600');
   createReadStream(targetPath).pipe(res);
 });

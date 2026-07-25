@@ -98,7 +98,7 @@ export default function TvDashboard() {
       <div style={{ position: 'relative', zIndex: 1 }}>
         <div style={styles.headerBlock}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <Logo size={40} />
+            <Logo size={56} />
             <div>
               <h1 style={styles.pageTitle}>{branding.club_name}</h1>
               <p style={styles.subtitle}>{lang === 'hi' ? 'लाइव एरिना बोर्ड • रियल-टाइम टेबल ट्रैकिंग' : lang === 'pb' ? 'ਲਾਈਵ ਅਰੇਨਾ ਬੋਰਡ • ਰੀਅਲ-ਟਾਈਮ ਟੇਬਲ ਟ੍ਰੈਕਿੰਗ' : 'Live Arena Board • Real-time table tracking'}</p>

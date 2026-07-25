@@ -176,8 +176,9 @@ router.get('/:id/wallet/history', requireAuth, async (req, res) => {
 router.get('/stats', requireAuth, async (req, res) => {
   try {
     // 1. Aggregate spending per customer from GameSession.players, filtered by clubId
+    const targetId = req.admin.clubId && req.admin.clubId._id ? req.admin.clubId._id : req.admin.clubId;
     const agg = await GameSession.aggregate([
-      { $match: { clubId: req.admin.clubId, status: { $in: ['billed', 'payment_set'] }, totalAmount: { $gt: 0 } } },
+      { $match: { clubId: targetId, status: { $in: ['billed', 'payment_set'] }, totalAmount: { $gt: 0 } } },
       { $unwind: '$players' },
       { $match: { 'players.customerId': { $exists: true, $ne: null } } },
       {
@@ -201,7 +202,7 @@ router.get('/stats', requireAuth, async (req, res) => {
     }
 
     // 2. Fetch all customers for this club and merge stats
-    const customers = await Customer.find({ clubId: req.admin.clubId }).sort({ createdAt: -1 });
+    const customers = await Customer.find({ clubId: targetId }).sort({ createdAt: -1 });
 
     const result = customers.map((c) => {
       const stats = statsMap[c._id.toString()] || { total_spent: 0, sessions_played: 0, last_visit: null };

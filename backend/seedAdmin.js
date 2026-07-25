@@ -47,6 +47,7 @@ async function seed() {
     themePrimary: '#0b2b22', // Felt Green theme
     themeSecondary: '#c9a24b', // Brass Gold theme
     customDomain: 'thebilliardarena.shop',
+    logoUrl: '/static/logo_arena.png',
   });
 
   const club2 = await Club.create({
@@ -69,6 +70,16 @@ async function seed() {
     customDomain: 'bajajsnooker.shop'
   });
 
+  const club4 = await Club.create({
+    subdomain: 'shooters',
+    name: 'shooters',
+    ownerName: 'Maneesh and Raj Bhandari',
+    targetDaily: 3000,
+    themePrimary: '#0b2b22',
+    themeSecondary: '#c9a24b',
+    logoUrl: '/static/logo_shooters.png',
+  });
+
   console.log('Creating Admin Users...');
   const passwordHash = await hashPassword('ChangeMe123!');
 
@@ -78,6 +89,7 @@ async function seed() {
     fullName: 'Beerbal Ji',
     clubId: club1._id,
     role: 'Club Owner',
+    plainPassword: 'ChangeMe123!'
   });
 
   await AdminUser.create({
@@ -86,6 +98,7 @@ async function seed() {
     fullName: 'Jane Doe',
     clubId: club2._id,
     role: 'Club Owner',
+    plainPassword: 'ChangeMe123!'
   });
 
   const bajajPasswordHash = await hashPassword('amrinder5397');
@@ -96,6 +109,27 @@ async function seed() {
     fullName: 'Amrinder Singh Bajaj',
     clubId: club3._id,
     role: 'Club Owner',
+    plainPassword: 'amrinder5397'
+  });
+
+  const shootersPasswordHash = await hashPassword('Changeme123!');
+
+  await AdminUser.create({
+    username: 'shooters',
+    hashedPassword: shootersPasswordHash,
+    fullName: 'Maneesh and Raj Bhandari',
+    clubId: club4._id,
+    role: 'Club Owner',
+    plainPassword: 'Changeme123!'
+  });
+
+  const superPasswordHash = await hashPassword('SuperAdmin123!');
+  await AdminUser.create({
+    username: 'superadmin',
+    hashedPassword: superPasswordHash,
+    fullName: 'Super Admin',
+    role: 'superadmin',
+    plainPassword: 'SuperAdmin123!'
   });
 
   console.log('Seeding Assets (Tables & Devices)...');
@@ -118,6 +152,12 @@ async function seed() {
     { clubId: club3._id, category: 'Snooker', label: 'Table 1', hourlyRate: 200, status: 'idle' },
     { clubId: club3._id, category: 'Pool', label: 'Table 2', hourlyRate: 150, status: 'idle' },
     { clubId: club3._id, category: 'PlayStation', label: 'PS5 Unit 1', hourlyRate: 100, status: 'idle' },
+  ]);
+
+  // Club 4 Assets
+  await Asset.create([
+    { clubId: club4._id, category: 'Snooker', label: 'Table 1', hourlyRate: 200, status: 'idle' },
+    { clubId: club4._id, category: 'Pool', label: 'Table 2', hourlyRate: 150, status: 'idle' },
   ]);
 
   console.log('Seeding Customers...');
@@ -163,11 +203,18 @@ async function seed() {
     { clubId: club3._id, name: 'Cold Drink', price: 40 },
   ]);
 
+  // Club 4 Menu
+  await FoodItem.create([
+    { clubId: club4._id, name: 'Samosa', price: 20 },
+    { clubId: club4._id, name: 'Tea', price: 15 },
+  ]);
+
   console.log('✓ Multi-tenant database successfully seeded.');
   console.log('Credentials:');
   console.log('  - Club 1 ("arena"): beerbalji / ChangeMe123!');
   console.log('  - Club 2 ("metro"): metroowner / ChangeMe123!');
   console.log('  - Club 3 ("bajaj"): bajajowner / amrinder5397!');
+  console.log('  - Club 4 ("shooters"): shooters / Changeme123!');
   process.exit(0);
 }
 

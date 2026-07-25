@@ -12,6 +12,7 @@ import foodRouter      from './routes/food.js';
 import revenueRouter   from './routes/revenue.js';
 import customersRouter from './routes/customers.js';
 import brandingRouter  from './routes/branding.js';
+import superadminRouter from './routes/superadmin.js';
 import Club            from './models/Club.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -68,7 +69,8 @@ app.use(cors({
 }));
 
 // ── Body parsing ─────────────────────────────────────────────────────────────
-app.use(express.json());
+app.use(express.json({ limit: '20mb' }));
+app.use(express.urlencoded({ limit: '20mb', extended: true }));
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 // Route prefixes are identical to the Python FastAPI backend so the frontend
@@ -80,6 +82,7 @@ app.use('/food',      foodRouter);
 app.use('/revenue',   revenueRouter);
 app.use('/customers', customersRouter);
 app.use('/branding',  brandingRouter);
+app.use('/superadmin', superadminRouter);
 
 // ── Health check ─────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => res.json({ status: 'ok', service: 'billiards-arena-api' }));

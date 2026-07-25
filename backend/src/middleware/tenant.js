@@ -86,6 +86,14 @@ export async function resolveTenant(req, res, next) {
       return res.status(404).json({ detail: `Club tenant '${identifier || explicitIdentifier}' not found.` });
     }
 
+    if (!club.isActive) {
+      return res.status(403).json({ detail: `Club tenant '${club.name}' is disabled. Please contact support (Owner: Amrinder Singh Bajaj, Email: amrindersnooker@gmail.com, Phone: 9780871564).` });
+    }
+
+    if (club.expiryDate && new Date() > club.expiryDate) {
+      return res.status(403).json({ detail: `Club tenant '${club.name}' subscription has expired. Please contact support (Owner: Amrinder Singh Bajaj, Email: amrindersnooker@gmail.com, Phone: 9780871564).` });
+    }
+
     req.club = club;
     next();
   } catch (err) {

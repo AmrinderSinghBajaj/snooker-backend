@@ -23,15 +23,36 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ detail: 'Incorrect username or password' });
     }
 
+    // Ensure the club account is active and not expired (bypass for superadmin)
+    if (user.role !== 'superadmin' && user.clubId) {
+      const club = user.clubId;
+      if (!club.isActive) {
+        return res.status(403).json({ detail: 'This club account has been disabled. Please contact support (Owner: Amrinder Singh Bajaj, Email: amrindersnooker@gmail.com, Phone: 9780871564).' });
+      }
+
+      // If this is the owner's first login and they have a trial duration configured, start the timer now
+      if (!club.firstLoginAt && club.trialDurationDays) {
+        club.firstLoginAt = new Date();
+        const expiry = new Date();
+        expiry.setDate(expiry.getDate() + club.trialDurationDays);
+        club.expiryDate = expiry;
+        await club.save();
+      }
+
+      if (club.expiryDate && new Date() > club.expiryDate) {
+        return res.status(403).json({ detail: 'This club subscription has expired. Please contact support (Owner: Amrinder Singh Bajaj, Email: amrindersnooker@gmail.com, Phone: 9780871564).' });
+      }
+    }
+
     const token = createAccessToken({ sub: user.username });
 
     return res.json({
       access_token: token,
       token_type:   'bearer',
-      club_name:    user.clubId.name,
+      club_name:    user.clubId ? user.clubId.name : 'Super Admin',
       full_name:    user.fullName,
       role:         user.role,
-      subdomain:    user.clubId.subdomain,
+      subdomain:    user.clubId ? user.clubId.subdomain : 'superadmin',
     });
   } catch (err) {
     console.error('POST /auth/login', err);
@@ -52,9 +73,9 @@ router.get('/me', requireAuth, async (req, res) => {
     return res.json({
       username:  user.username,
       full_name: user.fullName,
-      club_name: user.clubId.name,
+      club_name: user.clubId ? user.clubId.name : 'Super Admin',
       role:      user.role,
-      subdomain: user.clubId.subdomain,
+      subdomain: user.clubId ? user.clubId.subdomain : 'superadmin',
     });
   } catch (err) {
     console.error('GET /auth/me', err);

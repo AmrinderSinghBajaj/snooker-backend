@@ -16,8 +16,9 @@ function dayWindow(date) {
 
 /** Sum of totalAmount for paid/billed sessions in a time window for a specific club */
 async function sumInWindow(clubId, start, end) {
+  const targetId = clubId && clubId._id ? clubId._id : clubId;
   const result = await GameSession.aggregate([
-    { $match: { clubId, status: 'billed', paymentStatus: 'paid', finalizedAt: { $gte: start, $lt: end } } },
+    { $match: { clubId: targetId, status: 'billed', paymentStatus: 'paid', finalizedAt: { $gte: start, $lt: end } } },
     { $group: { _id: null, total: { $sum: '$totalAmount' } } },
   ]);
   return result[0]?.total ?? 0;
@@ -25,8 +26,9 @@ async function sumInWindow(clubId, start, end) {
 
 /** Full session docs for paid sessions in a window, for drilldown lists */
 async function sessionsInWindow(clubId, start, end) {
+  const targetId = clubId && clubId._id ? clubId._id : clubId;
   return GameSession.find({
-    clubId,
+    clubId: targetId,
     status: 'billed',
     paymentStatus: 'paid',
     finalizedAt: { $gte: start, $lt: end },

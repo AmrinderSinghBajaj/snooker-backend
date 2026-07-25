@@ -27,15 +27,21 @@ const NAV_ITEMS = [
 
 export default function AppShell() {
   const { admin, logout } = useAuth();
-  const { club_name } = useBranding();
+  const { club_name, expiry_date } = useBranding();
   const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
+
+  let daysLeft = null;
+  if (expiry_date) {
+    const diffTime = new Date(expiry_date) - new Date();
+    daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  }
 
   return (
     <div className="app-shell" style={styles.shell}>
       <header className="app-topbar" style={styles.topbar}>
         <div style={styles.brandBlock}>
-          <Logo size={32} />
+          <Logo size={48} />
           <div style={styles.clubName}>{club_name}</div>
         </div>
         <button
@@ -83,6 +89,14 @@ export default function AppShell() {
         </nav>
 
         <main className="app-main" style={styles.main}>
+          {daysLeft !== null && daysLeft <= 5 && daysLeft >= 0 && (
+            <div style={styles.trialBanner}>
+              <span style={styles.trialIcon}>⚠️</span>
+              <div style={styles.trialContent}>
+                <strong>Subscription Notice:</strong> Your subscription has only <strong>{daysLeft === 0 ? 'today' : `${daysLeft} ${daysLeft === 1 ? 'day' : 'days'}`}</strong> remaining. Please contact support (Owner: Amrinder Singh Bajaj, Email: amrindersnooker@gmail.com, Phone: 9780871564) to extend your subscription and prevent interruption.
+              </div>
+            </div>
+          )}
           <Outlet />
         </main>
       </div>
@@ -198,5 +212,24 @@ const styles = {
     padding: '28px',
     overflowY: 'auto',
     position: 'relative',
+  },
+  trialBanner: {
+    background: 'rgba(245, 158, 11, 0.15)',
+    border: '1px solid var(--brass-500)',
+    borderRadius: 'var(--radius-md)',
+    padding: '12px 18px',
+    marginBottom: 24,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+    boxShadow: '0 4px 12px rgba(245, 158, 11, 0.08)',
+  },
+  trialIcon: {
+    fontSize: '1.25rem',
+  },
+  trialContent: {
+    fontSize: '0.88rem',
+    color: 'var(--chalk-200)',
+    lineHeight: 1.5,
   },
 };
