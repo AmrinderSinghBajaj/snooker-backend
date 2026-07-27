@@ -4,6 +4,7 @@ import GameSession from '../models/GameSession.js';
 import { requireAuth } from '../middleware/auth.js';
 import { serializeFoodItem } from '../utils/serializers.js';
 import { nextSerialNumber } from '../utils/serial.js';
+import { getOrCreateCustomer } from '../utils/customerHelper.js';
 
 const router = Router();
 
@@ -90,54 +91,66 @@ router.post('/assign', requireAuth, async (req, res) => {
       addedTotal += item.price * qty;
     }
 
-    if (session_id === 'other') {
-      const serial = await nextSerialNumber(req.admin.clubId);
-      const session = await GameSession.create({
-        clubId:             req.admin.clubId,
-        serialNumber:       serial,
-        assetId:            null,
-        assetLabelOverride: 'Walk-in / Bar',
-        startTime:          new Date(),
-        stopTime:           new Date(),
-        finalizedAt:        new Date(),
-        status:             'billed',
-        timeAmount:         0,
-        foodAmount:         addedTotal,
-        totalAmount:        addedTotal,
-        paymentStatus:      'unpaid',
-        paidAmount:         0,
-        pendingAmount:      addedTotal,
-        players:            [{ displayName: ordered_by || 'Walk-in Guest' }],
-        foodOrders:         foodOrders,
-        isManualEntry:      true,
-      });
+    let resolvedPayerCids = [];
+    let payerName = ordered_by || 'Walk-in Guest';
 
-      return res.json({
-        order_id:            null,
-        added_total:         Math.round(addedTotal * 100) / 100,
-        session_food_amount: addedTotal,
-      });
+    if (session_id !== 'other') {
+      const activeSession = await GameSession.findOne({ _id: session_id, clubId: req.admin.clubId });
+      if (!activeSession) return res.status(404).json({ detail: 'Session not found' });
+      if (!['running', 'paused'].includes(activeSession.status)) {
+        return res.status(400).json({ detail: 'Can only assign food to an active or paused session' });
+      }
+
+      // Try to find the customerId from the active session players
+      const playerObj = activeSession.players.find(p => p.displayName === ordered_by);
+      if (playerObj) {
+        resolvedPayerCids = [{
+          customerId: playerObj.customerId,
+          displayName: playerObj.displayName,
+          isPayer: true,
+          shareAmount: addedTotal
+        }];
+        payerName = playerObj.displayName;
+      }
     }
 
-    const session = await GameSession.findOne({ _id: session_id, clubId: req.admin.clubId });
-    if (!session) return res.status(404).json({ detail: 'Session not found' });
-    if (!['running', 'paused'].includes(session.status)) {
-      return res.status(400).json({ detail: 'Can only assign food to an active or paused session' });
+    if (resolvedPayerCids.length === 0) {
+      // Create or retrieve customer
+      const customer = await getOrCreateCustomer(req.admin.clubId, payerName);
+      resolvedPayerCids = [{
+        customerId: customer._id,
+        displayName: customer.displayName,
+        isPayer: true,
+        shareAmount: addedTotal
+      }];
+      payerName = customer.displayName;
     }
 
-    // Append to existing food orders array
-    for (const order of foodOrders) {
-      session.foodOrders.push(order);
-    }
-
-    session.foodAmount = Math.round(((session.foodAmount ?? 0) + addedTotal) * 100) / 100;
-    session.totalAmount = Math.round(((session.timeAmount ?? 0) + session.foodAmount) * 100) / 100;
-    await session.save();
+    const serial = await nextSerialNumber(req.admin.clubId);
+    const session = await GameSession.create({
+      clubId:             req.admin.clubId,
+      serialNumber:       serial,
+      assetId:            null,
+      assetLabelOverride: 'Food / Cafe Sale',
+      startTime:          new Date(),
+      stopTime:           new Date(),
+      finalizedAt:        new Date(),
+      status:             'billed',
+      timeAmount:         0,
+      foodAmount:         addedTotal,
+      totalAmount:        addedTotal,
+      paymentStatus:      'unpaid',
+      paidAmount:         0,
+      pendingAmount:      addedTotal,
+      players:            resolvedPayerCids,
+      foodOrders:         foodOrders,
+      isManualEntry:      true,
+    });
 
     return res.json({
       order_id:            null,
       added_total:         Math.round(addedTotal * 100) / 100,
-      session_food_amount: session.foodAmount,
+      session_food_amount: addedTotal,
     });
   } catch (err) {
     console.error('POST /food/assign', err);
