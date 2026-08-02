@@ -424,10 +424,24 @@ button[title="Remove entry"]:active {
     left: 0 !important;
   }
 
+  .sidebar-backdrop {
+    display: block !important;
+  }
+
   .app-main {
     padding: 16px !important;
     overflow-x: hidden;
   }
+}
+
+/* Sidebar backdrop overlay base styling */
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+  z-index: 998;
+  display: none;
 }
 
 /* Login Page Responsive Styles */

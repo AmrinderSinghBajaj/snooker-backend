@@ -5,6 +5,7 @@ const customerSchema = new mongoose.Schema({
   username:      { type: String, required: true, index: true },
   displayName:   { type: String, required: true },
   walletBalance: { type: Number, default: 0 },
+  phone:         { type: String, default: '' },
 }, { timestamps: true });
 
 // Enforce unique usernames scoped within each club

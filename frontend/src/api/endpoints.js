@@ -66,6 +66,7 @@ export const customersApi = {
   addWalletMoney: (id, amount, paymentMethod, note) =>
     api.post(`/customers/${id}/wallet/add`, { amount, payment_method: paymentMethod, note }),
   walletHistory: (id) => api.get(`/customers/${id}/wallet/history`),
+  updatePhone: (id, phone) => api.post(`/customers/${id}/phone`, { phone }),
 };
 
 export const brandingApi = {

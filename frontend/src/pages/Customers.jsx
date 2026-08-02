@@ -446,7 +446,7 @@ const cardStyles = {
     padding: '12px 16px',
     backdropFilter: 'blur(10px)',
     boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
-    flex: '0 1 200px',
+    flex: '1 1 200px',
   },
 };
 

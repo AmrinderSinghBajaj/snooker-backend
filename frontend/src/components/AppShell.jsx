@@ -87,6 +87,12 @@ export default function AppShell() {
       </header>
 
       <div className="app-body" style={styles.body}>
+        {menuOpen && (
+          <div
+            className="sidebar-backdrop"
+            onClick={() => setMenuOpen(false)}
+          />
+        )}
         <nav className={`app-sidebar ${menuOpen ? 'open' : ''}`} style={styles.sidebar}>
           {filteredNavItems.map((item) => (
             <NavLink

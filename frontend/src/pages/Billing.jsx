@@ -63,6 +63,70 @@ function getSaleTypeStyle(r) {
   };
 }
 
+function WhatsAppIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="8" cy="8" r="8" fill="#25D366" />
+      <path
+        fill="#FFFFFF"
+        d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.71 1.916.81 2.049c.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232"
+      />
+    </svg>
+  );
+}
+
+function getWhatsAppLink(phone, record) {
+  let cleanPhone = (phone || '').replace(/\D/g, '');
+  if (cleanPhone.length === 10) {
+    cleanPhone = '91' + cleanPhone;
+  }
+  
+  const clubName = "BAJAJ SNOOKER ARENA";
+  const serial = record.serial_number || '';
+  const player = record.player_names ? record.player_names.join(', ') : 'Walk-in Player';
+  const gameTime = record.time_played_minutes ? `${record.time_played_minutes} min` : '';
+  const gameAmt = `₹${(record.time_amount || 0).toFixed(2)}`;
+  const foodAmt = `₹${(record.food_amount || 0).toFixed(2)}`;
+  const totalAmt = `₹${(record.total_amount || 0).toFixed(2)}`;
+  const paidAmt = `₹${(record.paid_amount || 0).toFixed(2)}`;
+  const pendingAmt = `₹${(record.pending_amount || 0).toFixed(2)}`;
+  const tableLabel = record.asset_label || '';
+  
+  const isPaid = record.payment_status === 'paid';
+  const method = record.payment_method ? record.payment_method.toUpperCase() : '';
+  
+  let msg = `=========================\n`;
+  msg += ` 🎱 *${clubName}* 🎱\n`;
+  msg += `=========================\n`;
+  if (serial) msg += `*Invoice:* #${serial}\n`;
+  msg += `*Player:* ${player}\n`;
+  if (tableLabel && tableLabel !== 'Manual Entry') msg += `*Table:* ${tableLabel}\n`;
+  msg += `\n*BILL DETAILS:*\n`;
+  msg += `-------------------------\n`;
+  if (gameTime) {
+    msg += `⏱️ *Time Played:* ${gameTime}\n`;
+    msg += `🕹️ *Table Charge:* ${gameAmt}\n`;
+  }
+  if (record.food_amount > 0) {
+    msg += `🍔 *Food / Cafe:* ${foodAmt}\n`;
+  }
+  msg += `-------------------------\n`;
+  msg += `💰 *Grand Total:* ${totalAmt}\n`;
+  msg += `💵 *Amount Paid:* ${paidAmt}\n`;
+  
+  if (isPaid) {
+    msg += `🟢 *Status:* FULLY PAID ${method ? `(${method})` : ''}\n`;
+  } else {
+    msg += `🔴 *Status:* PENDING\n`;
+    msg += `⚠️ *Balance Due:* ${pendingAmt}\n`;
+  }
+  msg += `=========================\n`;
+  msg += `Thank you for playing with us!\n`;
+  msg += `Hope to see you again soon. 🎱🔥`;
+
+  return `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msg)}`;
+}
+
 export default function Billing() {
   const { t, lang } = useTranslation();
   const [records, setRecords] = useState([]);
@@ -132,11 +196,13 @@ export default function Billing() {
     if (type === 'single') {
       setBusyId(id);
       try {
-        await billingApi.markPaid(id, payload);
+        const res = await billingApi.markPaid(id, payload);
         load();
         setToast(t('markedAsPaid'));
+        return res.data;
       } catch (err) {
         setError(err.response?.data?.detail || t('couldNotMarkPaid'));
+        throw err;
       } finally {
         setBusyId(null);
       }
@@ -158,6 +224,48 @@ export default function Billing() {
         setError(err.response?.data?.detail || t('errorMarkingPaid'));
       } finally {
         setBusyId(null);
+      }
+    }
+  };
+
+  const handleSendWhatsAppLater = async (record) => {
+    const pName = record.player_names ? record.player_names[0] : '';
+    let defaultPhone = '';
+    let matchedCustomer = null;
+    
+    try {
+      const res = await customersApi.list();
+      const list = res.data || [];
+      matchedCustomer = list.find(c =>
+        (c.display_name || '').toLowerCase().trim() === (pName || '').toLowerCase().trim()
+      );
+      if (matchedCustomer && matchedCustomer.phone) {
+        defaultPhone = matchedCustomer.phone;
+      }
+    } catch (err) {
+      console.error('Could not load customers for phone lookup', err);
+    }
+    
+    const input = window.prompt(
+      `Send WhatsApp Invoice to ${pName}:\nEnter customer mobile number (e.g. 9876543210):`,
+      defaultPhone
+    );
+    
+    if (input === null) return;
+    const clean = input.trim();
+    if (!clean) {
+      alert('Phone number cannot be empty.');
+      return;
+    }
+    
+    const url = getWhatsAppLink(clean, record);
+    window.open(url, '_blank');
+    
+    if (matchedCustomer && clean !== matchedCustomer.phone) {
+      try {
+        await customersApi.updatePhone(matchedCustomer.id, clean);
+      } catch (err) {
+        console.error('Could not save customer phone number', err);
       }
     }
   };
@@ -477,6 +585,14 @@ export default function Billing() {
                     <div style={styles.actionRow}>
                       <button style={styles.iconBtn} onClick={() => openDetail(r)} title="See detail" aria-label="See detail">
                         <EyeIcon />
+                      </button>
+                      <button
+                        style={{ ...styles.iconBtn, color: '#25D366' }}
+                        onClick={() => handleSendWhatsAppLater(r)}
+                        title="Send bill"
+                        aria-label="Send bill"
+                      >
+                        <WhatsAppIcon />
                       </button>
                       {canEditBilling && (
                         <button style={styles.iconBtn} onClick={() => setEditRecord(r)} title="Edit" aria-label="Edit">
@@ -1064,7 +1180,7 @@ const styles = {
     fontSize: '0.78rem',
     fontWeight: 600,
   },
-  actionRow: { display: 'flex', gap: 4 },
+  actionRow: { display: 'flex', gap: 8, minWidth: 140 },
   iconBtn: {
     background: 'transparent',
     border: '1px solid transparent',
@@ -1206,6 +1322,9 @@ function PaymentSettlementModal({ prompt, onClose, onConfirm, lang, t }) {
   const [offlineAmt, setOfflineAmt] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [modalErr, setModalErr] = useState('');
+  
+  const [successRecord, setSuccessRecord] = useState(null);
+  const [phoneInput, setPhoneInput] = useState('');
 
   useEffect(() => {
     customersApi.list()
@@ -1217,6 +1336,12 @@ function PaymentSettlementModal({ prompt, onClose, onConfirm, lang, t }) {
     (c.display_name || '').toLowerCase().trim() === (prompt.playerName || '').toLowerCase().trim()
   );
   const availableWallet = customer ? (customer.wallet_balance || 0) : 0;
+
+  useEffect(() => {
+    if (customer && customer.phone) {
+      setPhoneInput(customer.phone);
+    }
+  }, [customer]);
 
   const handleQuickPay = async (method) => {
     setModalErr('');
@@ -1237,12 +1362,22 @@ function PaymentSettlementModal({ prompt, onClose, onConfirm, lang, t }) {
       }
     }
     setSubmitting(true);
-    await onConfirm({
-      payment_method: method,
-      amount_received: rec,
-      wallet_amount: method === 'wallet' ? Math.min(rec, totalRequired) : 0,
-    });
-    setSubmitting(false);
+    try {
+      const record = await onConfirm({
+        payment_method: method,
+        amount_received: rec,
+        wallet_amount: method === 'wallet' ? Math.min(rec, totalRequired) : 0,
+      });
+      if (record && prompt.type === 'single') {
+        setSuccessRecord(record);
+      } else {
+        onClose();
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleConfirmSplit = async () => {
@@ -1274,15 +1409,114 @@ function PaymentSettlementModal({ prompt, onClose, onConfirm, lang, t }) {
     }
 
     setSubmitting(true);
-    await onConfirm({
-      payment_method: 'split',
-      amount_received: rec,
-      wallet_amount: w,
-      online_amount: o,
-      offline_amount: off,
-    });
-    setSubmitting(false);
+    try {
+      const record = await onConfirm({
+        payment_method: 'split',
+        amount_received: rec,
+        wallet_amount: w,
+        online_amount: o,
+        offline_amount: off,
+      });
+      if (record && prompt.type === 'single') {
+        setSuccessRecord(record);
+      } else {
+        onClose();
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSubmitting(false);
+    }
   };
+
+  if (successRecord) {
+    return (
+      <Modal title="Payment Successful" onClose={onClose} width={400}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18, alignItems: 'center', textAlign: 'center', padding: '10px 0' }}>
+          <div style={{ fontSize: '3rem', color: 'var(--green-go)' }}>✓</div>
+          <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--chalk-100)' }}>
+            Payment of ₹{successRecord.total_amount.toFixed(2)} recorded!
+          </div>
+          <p style={{ fontSize: '0.88rem', color: 'var(--chalk-400)', margin: 0 }}>
+            The session for <strong>{prompt.playerName}</strong> has been successfully settled.
+          </p>
+
+          <div style={{ width: '100%', borderTop: '1px solid var(--felt-600)', paddingTop: 18, display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'left' }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <span style={{ fontSize: '0.78rem', color: 'var(--chalk-400)', fontWeight: 600 }}>Send Invoice to WhatsApp (Optional)</span>
+              <input
+                type="text"
+                placeholder="e.g. 9876543210"
+                style={{
+                  background: 'var(--felt-800)',
+                  border: '1px solid var(--felt-500)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--chalk-100)',
+                  padding: '9px 12px',
+                  fontSize: '0.95rem',
+                  outline: 'none',
+                }}
+                value={phoneInput}
+                onChange={(e) => setPhoneInput(e.target.value)}
+              />
+            </label>
+            <button
+              type="button"
+              style={{
+                background: '#25D366',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 'var(--radius-sm)',
+                padding: '11px 0',
+                fontWeight: 700,
+                fontSize: '0.9rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+              }}
+              onClick={async () => {
+                const url = getWhatsAppLink(phoneInput, successRecord);
+                window.open(url, '_blank');
+                
+                if (customer && phoneInput.trim() && phoneInput.trim() !== customer.phone) {
+                  try {
+                    await customersApi.updatePhone(customer.id, phoneInput.trim());
+                  } catch (e) {
+                    console.error('Could not save phone number', e);
+                  }
+                }
+                
+                onClose();
+              }}
+            >
+              <WhatsAppIcon />
+              Send WhatsApp Bill
+            </button>
+          </div>
+
+          <button
+            style={{
+              width: '100%',
+              background: 'transparent',
+              border: '1px solid var(--felt-500)',
+              color: 'var(--chalk-400)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '10px 0',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              marginTop: 6
+            }}
+            onClick={onClose}
+          >
+            Close / Done
+          </button>
+        </div>
+      </Modal>
+    );
+  }
 
   return (
     <Modal title={t('selectPaymentMethod')} onClose={onClose} width={460}>

@@ -245,4 +245,24 @@ router.delete('/:id', requireAuth, requirePermission('customers', 'delete'), asy
   }
 });
 
+/**
+ * POST /customers/:id/phone
+ * Update customer phone number.
+ */
+router.post('/:id/phone', requireAuth, requirePermission('customers', 'edit'), async (req, res) => {
+  try {
+    const { phone } = req.body || {};
+    const customer = await Customer.findOneAndUpdate(
+      { _id: req.params.id, clubId: req.admin.clubId },
+      { phone: phone ? phone.trim() : '' },
+      { new: true }
+    );
+    if (!customer) return res.status(404).json({ detail: 'Customer not found' });
+    return res.json(serializeCustomer(customer));
+  } catch (err) {
+    console.error('POST /customers/:id/phone', err);
+    return res.status(500).json({ detail: 'Internal server error' });
+  }
+});
+
 export default router;

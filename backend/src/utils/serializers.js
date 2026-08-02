@@ -131,6 +131,7 @@ export function serializeCustomer(c) {
     username:       c.username,
     display_name:   c.displayName,
     wallet_balance: c.walletBalance ?? 0,
+    phone:          c.phone ?? '',
     created_at:     c.createdAt,
   };
 }
