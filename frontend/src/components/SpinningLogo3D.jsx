@@ -75,13 +75,22 @@ export default function SpinningLogo3D({ size = 48 }) {
     // 1. Initialise shared WebGL resources
     initSharedThree(size);
 
+    // 2. Dynamically resize renderer and camera to match this instance's size
+    if (sharedRenderer) {
+      sharedRenderer.setSize(size, size);
+    }
+    if (sharedCamera) {
+      sharedCamera.aspect = 1;
+      sharedCamera.updateProjectionMatrix();
+    }
+
     const container = containerRef.current;
     if (!container) return;
 
-    // 2. Attach shared canvas
+    // 3. Attach shared canvas
     container.appendChild(sharedRenderer.domElement);
 
-    // 3. Texture mapping and helper canvas
+    // 4. Texture mapping and helper canvas
     const applyTextures = (srcCanvas) => {
       const s = srcCanvas.width;
 
@@ -208,7 +217,7 @@ export default function SpinningLogo3D({ size = 48 }) {
       applyTextures(buildFallbackCanvas());
     }
 
-    // 4. Manage animation loop
+    // 5. Manage animation loop
     const instanceId = Math.random();
     currentAnimatingInstance = instanceId;
 
