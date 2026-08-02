@@ -130,6 +130,7 @@ function getWhatsAppLink(phone, record) {
 export default function Billing() {
   const { t, lang } = useTranslation();
   const [records, setRecords] = useState([]);
+  const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [detailSession, setDetailSession] = useState(null);
@@ -162,6 +163,10 @@ export default function Billing() {
       .then((res) => setRecords(res.data))
       .catch(() => setError(t('couldNotLoadBilling')))
       .finally(() => setLoading(false));
+
+    customersApi.list()
+      .then((res) => setCustomers(res.data || []))
+      .catch((err) => console.error('Could not pre-load customers', err));
   };
 
   useEffect(() => {
@@ -231,19 +236,13 @@ export default function Billing() {
   const handleSendWhatsAppLater = async (record) => {
     const pName = record.player_names ? record.player_names[0] : '';
     let defaultPhone = '';
-    let matchedCustomer = null;
     
-    try {
-      const res = await customersApi.list();
-      const list = res.data || [];
-      matchedCustomer = list.find(c =>
-        (c.display_name || '').toLowerCase().trim() === (pName || '').toLowerCase().trim()
-      );
-      if (matchedCustomer && matchedCustomer.phone) {
-        defaultPhone = matchedCustomer.phone;
-      }
-    } catch (err) {
-      console.error('Could not load customers for phone lookup', err);
+    // Synchronously find pre-loaded customer phone details to avoid async-context window blocking issues on Safari
+    const matchedCustomer = customers.find(c =>
+      (c.display_name || '').toLowerCase().trim() === (pName || '').toLowerCase().trim()
+    );
+    if (matchedCustomer && matchedCustomer.phone) {
+      defaultPhone = matchedCustomer.phone;
     }
     
     const input = window.prompt(
@@ -259,11 +258,18 @@ export default function Billing() {
     }
     
     const url = getWhatsAppLink(clean, record);
-    window.open(url, '_blank');
+    
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if (isMobile) {
+      window.location.href = url;
+    } else {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
     
     if (matchedCustomer && clean !== matchedCustomer.phone) {
       try {
         await customersApi.updatePhone(matchedCustomer.id, clean);
+        setCustomers(prev => prev.map(c => c.id === matchedCustomer.id ? { ...c, phone: clean } : c));
       } catch (err) {
         console.error('Could not save customer phone number', err);
       }
@@ -1478,7 +1484,13 @@ function PaymentSettlementModal({ prompt, onClose, onConfirm, lang, t }) {
               }}
               onClick={async () => {
                 const url = getWhatsAppLink(phoneInput, successRecord);
-                window.open(url, '_blank');
+                
+                const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+                if (isMobile) {
+                  window.location.href = url;
+                } else {
+                  window.open(url, '_blank', 'noopener,noreferrer');
+                }
                 
                 if (customer && phoneInput.trim() && phoneInput.trim() !== customer.phone) {
                   try {
