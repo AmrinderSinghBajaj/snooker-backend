@@ -221,7 +221,7 @@ export default function Billing() {
 
   const totals = records.reduce(
     (acc, r) => {
-      acc.total += r.total_amount;
+      acc.total += r.paid_amount;
       acc.pending += r.payment_status === 'unpaid' ? r.pending_amount : 0;
       return acc;
     },
@@ -351,7 +351,7 @@ export default function Billing() {
             </>
           ) : (
             <>
-              <StatPill label={t('totalRevenue')} value={`₹${outstandingTotals.total.toFixed(2)}`} accent="orange" />
+              <StatPill label={t('outstandingTab')} value={`₹${outstandingTotals.total.toFixed(2)}`} accent="orange" />
               <StatPill label={t('unpaid')} value={String(outstandingTotals.count)} accent="neutral" />
               <StatPill label={t('players')} value={String(outstandingByPlayer.length)} accent="neutral" />
             </>

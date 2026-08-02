@@ -15,23 +15,23 @@ function dayWindow(date) {
   return { start, end };
 }
 
-/** Sum of totalAmount for paid/billed sessions in a time window for a specific club */
+/** Sum of paidAmount for billed sessions in a time window for a specific club */
 async function sumInWindow(clubId, start, end) {
   const targetId = clubId && clubId._id ? clubId._id : clubId;
   const result = await GameSession.aggregate([
-    { $match: { clubId: targetId, status: 'billed', paymentStatus: 'paid', finalizedAt: { $gte: start, $lt: end } } },
-    { $group: { _id: null, total: { $sum: '$totalAmount' } } },
+    { $match: { clubId: targetId, status: 'billed', paidAmount: { $gt: 0 }, finalizedAt: { $gte: start, $lt: end } } },
+    { $group: { _id: null, total: { $sum: '$paidAmount' } } },
   ]);
   return result[0]?.total ?? 0;
 }
 
-/** Full session docs for paid sessions in a window, for drilldown lists */
+/** Full session docs for sessions with paid amounts in a window, for drilldown lists */
 async function sessionsInWindow(clubId, start, end) {
   const targetId = clubId && clubId._id ? clubId._id : clubId;
   return GameSession.find({
     clubId: targetId,
     status: 'billed',
-    paymentStatus: 'paid',
+    paidAmount: { $gt: 0 },
     finalizedAt: { $gte: start, $lt: end },
   }).sort({ finalizedAt: 1 });
 }
@@ -48,7 +48,7 @@ function formatTransaction(s) {
     serial_number:      s.serialNumber,
     player_names:       payers.map((p) => p.displayName),
     time_played_minutes: minutes,
-    total_amount:       s.totalAmount ?? 0,
+    total_amount:       s.paidAmount ?? 0,
     payment_method:     s.paymentMethod ?? null,
   };
 }

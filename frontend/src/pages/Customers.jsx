@@ -38,9 +38,9 @@ const rankStyles = {
 function StatCard({ label, value, sub, accent }) {
   return (
     <div style={{ ...cardStyles.stat, borderColor: `${accent}30` }}>
-      <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--chalk-400)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>{label}</div>
-      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '1.85rem', fontWeight: 700, color: accent ?? 'var(--chalk-100)', lineHeight: 1 }}>{value}</div>
-      {sub && <div style={{ fontSize: '0.78rem', color: 'var(--chalk-400)', marginTop: 6 }}>{sub}</div>}
+      <div style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--chalk-400)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>{label}</div>
+      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '1.45rem', fontWeight: 700, color: accent ?? 'var(--chalk-100)', lineHeight: 1 }}>{value}</div>
+      {sub && <div style={{ fontSize: '0.72rem', color: 'var(--chalk-400)', marginTop: 4 }}>{sub}</div>}
     </div>
   );
 }
@@ -119,7 +119,7 @@ export default function Customers() {
       <div style={styles.page}>
         <h1 style={styles.pageTitle}>{t('playerBook')}</h1>
         <div style={styles.statsRow}>
-          {[1,2,3].map((n) => <div key={n} className="skeleton" style={{ height: 90, borderRadius: 'var(--radius-md)' }} />)}
+          {[1,2].map((n) => <div key={n} className="skeleton" style={{ height: 80, flex: '0 1 200px', borderRadius: 'var(--radius-md)' }} />)}
         </div>
         <div style={gridStyles}>
           {[1,2,3,4,5,6].map((n) => <div key={n} className="skeleton" style={{ height: 130, borderRadius: 'var(--radius-md)' }} />)}
@@ -143,7 +143,6 @@ export default function Customers() {
       {/* ── Summary Stats ── */}
       <div style={styles.statsRow}>
         <StatCard label={lang === 'hi' ? 'कुल खिलाड़ी' : lang === 'pb' ? 'ਕੁੱਲ ਖਿਡਾਰੀ' : 'Total Players'}   value={customers.length}       sub={lang === 'hi' ? 'रिकॉर्ड में' : lang === 'pb' ? 'ਰਿਕਾਰਡ ਵਿੱਚ' : 'on record'}          accent="var(--chalk-100)" />
-        <StatCard label={t('totalRevenue')}   value={fmt(totalRevenue)}      sub={lang === 'hi' ? 'कुल जीवनकाल खर्च' : lang === 'pb' ? 'ਕੁੱਲ ਜੀਵਨ ਭਰ ਖਰਚਾ' : 'lifetime across all'} accent="var(--brass-300)" />
         <StatCard label={lang === 'hi' ? 'कुल सत्र' : lang === 'pb' ? 'ਕੁੱਲ ਸੈਸ਼ਨ' : 'Total Sessions'}  value={totalSessions}          sub={lang === 'hi' ? 'खेले गए खेल' : lang === 'pb' ? 'ਖੇਡੇ ਗਏ ਯੂਨਿਟ' : 'games played'}        accent="#4ade80" />
       </div>
 
@@ -346,7 +345,7 @@ const styles = {
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28, flexWrap: 'wrap', gap: 16 },
   pageTitle: { fontFamily: 'var(--font-display)', fontSize: '2rem', color: 'var(--chalk-100)', margin: 0, letterSpacing: '-0.01em' },
   subtitle: { color: 'var(--chalk-400)', margin: '4px 0 0', fontSize: '0.92rem' },
-  statsRow: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16, marginBottom: 28 },
+  statsRow: { display: 'flex', gap: 16, marginBottom: 28, flexWrap: 'wrap' },
   toolbar: { display: 'flex', gap: 12, alignItems: 'center', marginBottom: 20, flexWrap: 'wrap' },
   searchWrap: { position: 'relative', flex: 1, minWidth: 200, maxWidth: 340 },
   searchIcon: { position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--chalk-400)', display: 'flex', alignItems: 'center' },
@@ -444,9 +443,10 @@ const cardStyles = {
     background: 'rgba(255, 255, 255, 0.03)',
     border: '1px solid rgba(255, 255, 255, 0.08)',
     borderRadius: 'var(--radius-md)',
-    padding: '18px 22px',
+    padding: '12px 16px',
     backdropFilter: 'blur(10px)',
     boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
+    flex: '0 1 200px',
   },
 };
 

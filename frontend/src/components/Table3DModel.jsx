@@ -5,10 +5,18 @@ export default function Table3DModel({ category, isActive, isPaused }) {
   const mountRef = useRef(null);
   const hoverRef = useRef(false);
   const [hovered, setHovered] = useState(false);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => { hoverRef.current = hovered; }, [hovered]);
 
   useEffect(() => {
+    const delay = Math.random() * 150 + 100; // staggered delay between 100ms and 250ms
+    const timer = setTimeout(() => setReady(true), delay);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!ready) return;
     const mount = mountRef.current;
     if (!mount) return;
 
@@ -23,7 +31,14 @@ export default function Table3DModel({ category, isActive, isPaused }) {
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.4;
+    
+    renderer.domElement.style.transition = 'opacity 0.4s ease';
+    renderer.domElement.style.opacity = '0';
     mount.appendChild(renderer.domElement);
+
+    const fadeTimer = setTimeout(() => {
+      if (renderer.domElement) renderer.domElement.style.opacity = '1';
+    }, 50);
 
     // ── Scene & Camera ────────────────────────────────────────────────────────
     const scene = new THREE.Scene();
@@ -691,6 +706,7 @@ export default function Table3DModel({ category, isActive, isPaused }) {
     return () => {
       cancelAnimationFrame(raf);
       ro.disconnect();
+      clearTimeout(fadeTimer);
       if (renderer.domElement.parentNode === mount) mount.removeChild(renderer.domElement);
       root.traverse((o) => {
         if (o.geometry) o.geometry.dispose();
@@ -702,7 +718,7 @@ export default function Table3DModel({ category, isActive, isPaused }) {
       envTexture.dispose();
       renderer.dispose();
     };
-  }, [category, isActive, isPaused]);
+  }, [category, isActive, isPaused, ready]);
 
   return (
     <div
