@@ -19,11 +19,11 @@ const NAV_ITEMS = [
   { to: '/billing', key: 'billing', label: 'Billing Section' },
   { to: '/tables', key: 'tablesPlaystation', label: 'Table and PlayStation Section' },
   { to: '/food', key: 'foodDrink', label: 'Food and Drink' },
+  { to: '/pending-payments', key: 'pendingPayments', label: 'Pending Payment Customers' },
   { to: '/advance-payments', key: 'advancePayments', label: 'Advance Payment Customers' },
   { to: '/revenue', key: 'revenue', label: 'Revenue Section' },
-  { to: '/settings', key: 'settings', label: 'Setting Section' },
   { to: '/employee-management', key: 'employeeManagement', label: 'Employee Management' },
-  { to: '/tournament', key: 'tournament', label: 'Tournament', future: true },
+  { to: '/settings', key: 'settings', label: 'Setting Section' },
 ];
 
 export default function AppShell() {
@@ -48,6 +48,7 @@ export default function AppShell() {
       billing: 'billing',
       tablesPlaystation: 'tables',
       foodDrink: 'foodDrink',
+      pendingPayments: 'billing',
       advancePayments: 'advancePay',
       revenue: 'revenue',
       settings: 'settings',

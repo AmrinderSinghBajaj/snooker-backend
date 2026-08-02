@@ -15,6 +15,7 @@ import TvDashboard from './pages/TvDashboard';
 import Settings from './pages/Settings';
 import AdvancePayments from './pages/AdvancePayments';
 import EmployeeManagement from './pages/EmployeeManagement';
+import PendingPayments from './pages/PendingPayments';
 
 function SplashGuard({ children }) {
   const introDone = sessionStorage.getItem('intro_done');
@@ -47,6 +48,7 @@ export default function App() {
               <Route path="/billing" element={<Billing />} />
               <Route path="/tables" element={<TableSetup />} />
               <Route path="/food" element={<FoodAndDrink />} />
+              <Route path="/pending-payments" element={<PendingPayments />} />
               <Route path="/advance-payments" element={<AdvancePayments />} />
               <Route path="/revenue" element={<Revenue />} />
               <Route path="/settings" element={<Settings />} />

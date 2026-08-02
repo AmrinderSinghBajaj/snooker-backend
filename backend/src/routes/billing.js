@@ -300,15 +300,12 @@ router.get('/records', requireAuth, requirePermission('billing', 'view'), async 
   }
 });
 
-/**
- * POST /billing/:sessionId/paid
- */
 router.post('/:sessionId/paid', requireAuth, requirePermission('billing', 'edit'), async (req, res) => {
   try {
     const session = await GameSession.findOne({ _id: req.params.sessionId, clubId: req.admin.clubId });
     if (!session) return res.status(404).json({ detail: 'Session not found' });
 
-    const { payment_method, amount_received, wallet_amount, online_amount, offline_amount } = req.body || {};
+    const { payment_method, amount_received, wallet_amount, online_amount, offline_amount, settle_past_outstanding } = req.body || {};
     const method = ['online', 'offline', 'wallet', 'split'].includes(payment_method) ? payment_method : 'offline';
 
     const billDue = (session.pendingAmount !== undefined && session.pendingAmount > 0)
@@ -323,26 +320,22 @@ router.post('/:sessionId/paid', requireAuth, requirePermission('billing', 'edit'
       return res.status(400).json({ detail: 'Amount received must be greater than 0.' });
     }
 
-    const overpayment = Math.max(0, Math.round((receivedNum - billDue) * 100) / 100);
-    const effectivePaid = Math.min(receivedNum, billDue);
-    const remainingPending = Math.max(0, Math.round((billDue - effectivePaid) * 100) / 100);
-
-    let wAmt = 0;
-    let oAmt = 0;
-    let offAmt = 0;
+    let totalWallet = 0;
+    let totalOnline = 0;
+    let totalOffline = 0;
 
     if (method === 'wallet') {
-      wAmt = effectivePaid;
+      totalWallet = receivedNum;
     } else if (method === 'online') {
-      oAmt = effectivePaid;
+      totalOnline = receivedNum;
     } else if (method === 'offline') {
-      offAmt = effectivePaid;
+      totalOffline = receivedNum;
     } else if (method === 'split') {
-      wAmt = Math.max(0, Number(wallet_amount) || 0);
-      oAmt = Math.max(0, Number(online_amount) || 0);
-      offAmt = Math.max(0, Number(offline_amount) || 0);
-      if (Math.round((wAmt + oAmt + offAmt) * 100) !== Math.round(effectivePaid * 100)) {
-        return res.status(400).json({ detail: `Split payment amounts (₹${(wAmt + oAmt + offAmt).toFixed(2)}) must equal paid amount (₹${effectivePaid.toFixed(2)})` });
+      totalWallet = Math.max(0, Number(wallet_amount) || 0);
+      totalOnline = Math.max(0, Number(online_amount) || 0);
+      totalOffline = Math.max(0, Number(offline_amount) || 0);
+      if (Math.round((totalWallet + totalOnline + totalOffline) * 100) !== Math.round(receivedNum * 100)) {
+        return res.status(400).json({ detail: `Split payment amounts (₹${(totalWallet + totalOnline + totalOffline).toFixed(2)}) must equal total amount paid (₹${receivedNum.toFixed(2)})` });
       }
     }
 
@@ -358,37 +351,100 @@ router.post('/:sessionId/paid', requireAuth, requirePermission('billing', 'edit'
       }
     }
 
-    // Deduct from wallet if wallet payment was used
-    if (wAmt > 0) {
-      if (!customer) {
-        return res.status(400).json({ detail: 'No registered customer found for wallet deduction.' });
+    let remainingWallet = totalWallet;
+    let remainingOnline = totalOnline;
+    let remainingOffline = totalOffline;
+
+    const allocateFunds = async (sessionObj, amountNeeded) => {
+      let wUsed = Math.min(remainingWallet, amountNeeded);
+      remainingWallet = Math.round((remainingWallet - wUsed) * 100) / 100;
+      amountNeeded = Math.round((amountNeeded - wUsed) * 100) / 100;
+
+      let oUsed = Math.min(remainingOnline, amountNeeded);
+      remainingOnline = Math.round((remainingOnline - oUsed) * 100) / 100;
+      amountNeeded = Math.round((amountNeeded - oUsed) * 100) / 100;
+
+      let offUsed = Math.min(remainingOffline, amountNeeded);
+      remainingOffline = Math.round((remainingOffline - offUsed) * 100) / 100;
+      amountNeeded = Math.round((amountNeeded - offUsed) * 100) / 100;
+
+      const totalPaidThisSession = wUsed + oUsed + offUsed;
+      sessionObj.paidAmount = Math.round(((sessionObj.paidAmount || 0) + totalPaidThisSession) * 100) / 100;
+      
+      const oldPending = (sessionObj.pendingAmount !== undefined && sessionObj.pendingAmount > 0)
+        ? sessionObj.pendingAmount
+        : (sessionObj.totalAmount ?? 0);
+      sessionObj.pendingAmount = Math.max(0, Math.round((oldPending - totalPaidThisSession) * 100) / 100);
+      sessionObj.paymentStatus = sessionObj.pendingAmount === 0 ? 'paid' : 'unpaid';
+
+      sessionObj.walletPaidAmount = (sessionObj.walletPaidAmount || 0) + wUsed;
+      sessionObj.onlinePaidAmount = (sessionObj.onlinePaidAmount || 0) + oUsed;
+      sessionObj.offlinePaidAmount = (sessionObj.offlinePaidAmount || 0) + offUsed;
+      
+      if (wUsed > 0 && (oUsed > 0 || offUsed > 0)) {
+        sessionObj.paymentMethod = 'split';
+      } else if (wUsed > 0) {
+        sessionObj.paymentMethod = 'wallet';
+      } else if (oUsed > 0) {
+        sessionObj.paymentMethod = 'online';
+      } else {
+        sessionObj.paymentMethod = 'offline';
       }
 
-      const available = customer.walletBalance || 0;
-      if (available < wAmt) {
-        return res.status(400).json({ detail: `Insufficient wallet balance for ${customer.displayName}. Available: ₹${available.toFixed(2)}, Required: ₹${wAmt.toFixed(2)}` });
+      await sessionObj.save();
+
+      if (wUsed > 0 && customer) {
+        const available = customer.walletBalance || 0;
+        const newBalance = Math.round((available - wUsed) * 100) / 100;
+        customer.walletBalance = newBalance;
+        await customer.save();
+
+        await WalletTransaction.create({
+          clubId: req.admin.clubId,
+          customerId: customer._id,
+          type: 'debit',
+          amount: wUsed,
+          balanceAfter: newBalance,
+          description: `Bill #${sessionObj.serialNumber} Payment`,
+          sessionId: sessionObj._id,
+          paymentMethod: sessionObj.paymentMethod,
+        });
       }
+    };
 
-      const newBalance = Math.round((available - wAmt) * 100) / 100;
-      customer.walletBalance = newBalance;
-      await customer.save();
+    // 1. Pay today's session
+    const currentSessionPaidAmount = Math.min(receivedNum, billDue);
+    await allocateFunds(session, currentSessionPaidAmount);
 
-      await WalletTransaction.create({
-        clubId: req.admin.clubId,
-        customerId: customer._id,
-        type: 'debit',
-        amount: wAmt,
-        balanceAfter: newBalance,
-        description: `Bill #${session.serialNumber} Payment`,
-        sessionId: session._id,
-        paymentMethod: method,
-      });
+    // 2. Settle past outstanding if checked and remaining money is present
+    if (settle_past_outstanding && customer) {
+      const remainingFunds = Math.round((remainingWallet + remainingOnline + remainingOffline) * 100) / 100;
+      if (remainingFunds > 0) {
+        const unpaidSessions = await GameSession.find({
+          clubId: req.admin.clubId,
+          paymentStatus: 'unpaid',
+          _id: { $ne: session._id },
+          $or: [
+            { 'players.customerId': customer._id },
+            { 'players.displayName': customer.displayName }
+          ]
+        }).sort({ startTime: 1 });
+
+        for (const s of unpaidSessions) {
+          const fundsAvailable = Math.round((remainingWallet + remainingOnline + remainingOffline) * 100) / 100;
+          if (fundsAvailable <= 0) break;
+          const due = s.pendingAmount || 0;
+          if (due <= 0) continue;
+          await allocateFunds(s, Math.min(fundsAvailable, due));
+        }
+      }
     }
 
-    // If overpayment occurred, credit the overpayment to customer's wallet!
-    if (overpayment > 0 && customer) {
+    // 3. Credit remaining surplus to advance wallet
+    const surplus = Math.round((remainingWallet + remainingOnline + remainingOffline) * 100) / 100;
+    if (surplus > 0 && customer) {
       const curBalance = customer.walletBalance || 0;
-      const newBalance = Math.round((curBalance + overpayment) * 100) / 100;
+      const newBalance = Math.round((curBalance + surplus) * 100) / 100;
       customer.walletBalance = newBalance;
       await customer.save();
 
@@ -396,7 +452,7 @@ router.post('/:sessionId/paid', requireAuth, requirePermission('billing', 'edit'
         clubId: req.admin.clubId,
         customerId: customer._id,
         type: 'credit',
-        amount: overpayment,
+        amount: surplus,
         balanceAfter: newBalance,
         description: `Overpayment credit from Bill #${session.serialNumber}`,
         sessionId: session._id,
@@ -404,21 +460,162 @@ router.post('/:sessionId/paid', requireAuth, requirePermission('billing', 'edit'
       });
     }
 
-    // Update session paid & pending amounts
-    const updatedPaidTotal = Math.round(((session.paidAmount || 0) + effectivePaid) * 100) / 100;
-    session.paymentStatus = remainingPending === 0 ? 'paid' : 'unpaid';
-    session.paidAmount = updatedPaidTotal;
-    session.pendingAmount = remainingPending;
-    session.paymentMethod = method;
-    session.walletPaidAmount = (session.walletPaidAmount || 0) + wAmt;
-    session.onlinePaidAmount = (session.onlinePaidAmount || 0) + oAmt;
-    session.offlinePaidAmount = (session.offlinePaidAmount || 0) + offAmt;
-    await session.save();
-
     const { label, hourlyRate } = await resolveLabelAndRate(session);
     return res.json(serializeBillingRecord(session, label, hourlyRate));
   } catch (err) {
     console.error('POST /billing/:id/paid', err);
+    return res.status(500).json({ detail: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /billing/outstanding/settle
+ * Settle past outstanding dues directly
+ */
+router.post('/outstanding/settle', requireAuth, requirePermission('billing', 'edit'), async (req, res) => {
+  try {
+    const { playerName, customerId, amount_received, payment_method, wallet_amount, online_amount, offline_amount } = req.body || {};
+    const method = ['online', 'offline', 'wallet', 'split'].includes(payment_method) ? payment_method : 'offline';
+
+    const receivedNum = Number(amount_received);
+    if (isNaN(receivedNum) || receivedNum <= 0) {
+      return res.status(400).json({ detail: 'Amount received must be greater than 0.' });
+    }
+
+    let customer = null;
+    if (customerId) {
+      customer = await Customer.findOne({ _id: customerId, clubId: req.admin.clubId });
+    } else if (playerName) {
+      customer = await Customer.findOne({ displayName: playerName.trim(), clubId: req.admin.clubId });
+      if (!customer) {
+        customer = await getOrCreateCustomer(req.admin.clubId, playerName.trim());
+      }
+    }
+
+    if (!customer) {
+      return res.status(404).json({ detail: 'Customer not found' });
+    }
+
+    let totalWallet = 0;
+    let totalOnline = 0;
+    let totalOffline = 0;
+
+    if (method === 'wallet') {
+      totalWallet = receivedNum;
+    } else if (method === 'online') {
+      totalOnline = receivedNum;
+    } else if (method === 'offline') {
+      totalOffline = receivedNum;
+    } else if (method === 'split') {
+      totalWallet = Math.max(0, Number(wallet_amount) || 0);
+      totalOnline = Math.max(0, Number(online_amount) || 0);
+      totalOffline = Math.max(0, Number(offline_amount) || 0);
+      if (Math.round((totalWallet + totalOnline + totalOffline) * 100) !== Math.round(receivedNum * 100)) {
+        return res.status(400).json({ detail: `Split payment amounts (₹${(totalWallet + totalOnline + totalOffline).toFixed(2)}) must equal total amount paid (₹${receivedNum.toFixed(2)})` });
+      }
+    }
+
+    let remainingWallet = totalWallet;
+    let remainingOnline = totalOnline;
+    let remainingOffline = totalOffline;
+
+    const allocateFunds = async (sessionObj, amountNeeded) => {
+      let wUsed = Math.min(remainingWallet, amountNeeded);
+      remainingWallet = Math.round((remainingWallet - wUsed) * 100) / 100;
+      amountNeeded = Math.round((amountNeeded - wUsed) * 100) / 100;
+
+      let oUsed = Math.min(remainingOnline, amountNeeded);
+      remainingOnline = Math.round((remainingOnline - oUsed) * 100) / 100;
+      amountNeeded = Math.round((amountNeeded - oUsed) * 100) / 100;
+
+      let offUsed = Math.min(remainingOffline, amountNeeded);
+      remainingOffline = Math.round((remainingOffline - offUsed) * 100) / 100;
+      amountNeeded = Math.round((amountNeeded - offUsed) * 100) / 100;
+
+      const totalPaidThisSession = wUsed + oUsed + offUsed;
+      sessionObj.paidAmount = Math.round(((sessionObj.paidAmount || 0) + totalPaidThisSession) * 100) / 100;
+      
+      const oldPending = (sessionObj.pendingAmount !== undefined && sessionObj.pendingAmount > 0)
+        ? sessionObj.pendingAmount
+        : (sessionObj.totalAmount ?? 0);
+      sessionObj.pendingAmount = Math.max(0, Math.round((oldPending - totalPaidThisSession) * 100) / 100);
+      sessionObj.paymentStatus = sessionObj.pendingAmount === 0 ? 'paid' : 'unpaid';
+
+      sessionObj.walletPaidAmount = (sessionObj.walletPaidAmount || 0) + wUsed;
+      sessionObj.onlinePaidAmount = (sessionObj.onlinePaidAmount || 0) + oUsed;
+      sessionObj.offlinePaidAmount = (sessionObj.offlinePaidAmount || 0) + offUsed;
+      
+      if (wUsed > 0 && (oUsed > 0 || offUsed > 0)) {
+        sessionObj.paymentMethod = 'split';
+      } else if (wUsed > 0) {
+        sessionObj.paymentMethod = 'wallet';
+      } else if (oUsed > 0) {
+        sessionObj.paymentMethod = 'online';
+      } else {
+        sessionObj.paymentMethod = 'offline';
+      }
+
+      await sessionObj.save();
+
+      if (wUsed > 0 && customer) {
+        const available = customer.walletBalance || 0;
+        const newBalance = Math.round((available - wUsed) * 100) / 100;
+        customer.walletBalance = newBalance;
+        await customer.save();
+
+        await WalletTransaction.create({
+          clubId: req.admin.clubId,
+          customerId: customer._id,
+          type: 'debit',
+          amount: wUsed,
+          balanceAfter: newBalance,
+          description: `Bill #${sessionObj.serialNumber} Payment`,
+          sessionId: sessionObj._id,
+          paymentMethod: sessionObj.paymentMethod,
+        });
+      }
+    };
+
+    // Find older unpaid sessions
+    const unpaidSessions = await GameSession.find({
+      clubId: req.admin.clubId,
+      paymentStatus: 'unpaid',
+      $or: [
+        { 'players.customerId': customer._id },
+        { 'players.displayName': customer.displayName }
+      ]
+    }).sort({ startTime: 1 });
+
+    for (const s of unpaidSessions) {
+      const fundsAvailable = Math.round((remainingWallet + remainingOnline + remainingOffline) * 100) / 100;
+      if (fundsAvailable <= 0) break;
+      const due = s.pendingAmount || 0;
+      if (due <= 0) continue;
+      await allocateFunds(s, Math.min(fundsAvailable, due));
+    }
+
+    // Surplus goes to wallet
+    const surplus = Math.round((remainingWallet + remainingOnline + remainingOffline) * 100) / 100;
+    if (surplus > 0) {
+      const curBalance = customer.walletBalance || 0;
+      const newBalance = Math.round((curBalance + surplus) * 100) / 100;
+      customer.walletBalance = newBalance;
+      await customer.save();
+
+      await WalletTransaction.create({
+        clubId: req.admin.clubId,
+        customerId: customer._id,
+        type: 'credit',
+        amount: surplus,
+        balanceAfter: newBalance,
+        description: `Direct outstanding payment surplus`,
+        paymentMethod: method === 'split' ? 'offline' : method,
+      });
+    }
+
+    return res.json({ success: true, walletBalance: customer.walletBalance });
+  } catch (err) {
+    console.error('POST /billing/outstanding/settle', err);
     return res.status(500).json({ detail: 'Internal server error' });
   }
 });

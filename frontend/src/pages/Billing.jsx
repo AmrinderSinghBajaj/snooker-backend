@@ -214,17 +214,19 @@ export default function Billing() {
     } else if (type === 'all') {
       setBusyId(`mark-all-${playerName}`);
       try {
-        let successCount = 0;
-        for (const record of records) {
-          try {
-            await billingApi.markPaid(record.session_id, payload);
-            successCount++;
-          } catch (err) {
-            console.error(`Failed to mark ${record.session_id} as paid:`, err);
-          }
+        const settlePayload = {
+          playerName: playerName,
+          amount_received: payload.amount_received,
+          payment_method: payload.payment_method,
+        };
+        if (payload.payment_method === 'split') {
+          settlePayload.wallet_amount = payload.wallet_amount;
+          settlePayload.online_amount = payload.online_amount;
+          settlePayload.offline_amount = payload.offline_amount;
         }
+        await billingApi.settleOutstanding(settlePayload);
         load();
-        setToast(t('markedAllAsPaid').replace('records', `${successCount}/${records.length} records`));
+        setToast(t('markedAllAsPaid').replace('records', `${records.length}/${records.length} records`));
       } catch (err) {
         setError(err.response?.data?.detail || t('errorMarkingPaid'));
       } finally {
@@ -459,7 +461,6 @@ export default function Billing() {
         <div style={styles.statsRow}>
           {activeTab === 'all' ? (
             <>
-              <StatPill label={t('totalRevenue')} value={`₹${totals.total.toFixed(2)}`} accent="brass" />
               <StatPill label={t('outstandingTab')} value={`₹${totals.pending.toFixed(2)}`} accent={totals.pending > 0 ? 'orange' : 'green'} />
               <StatPill label={t('history')} value={String(records.length)} accent="neutral" />
             </>

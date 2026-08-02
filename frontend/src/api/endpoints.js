@@ -37,6 +37,7 @@ export const billingApi = {
   edit: (sessionId, payload) => api.put(`/billing/${sessionId}/edit`, payload),
   createManualEntry: (payload) => api.post('/billing/manual-entry', payload),
   remove: (sessionId) => api.delete(`/billing/${sessionId}`),
+  settleOutstanding: (payload) => api.post('/billing/outstanding/settle', payload),
 };
 
 export const foodApi = {
