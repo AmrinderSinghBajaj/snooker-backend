@@ -141,5 +141,6 @@ export function serializeFoodItem(f) {
     name:      f.name,
     price:     f.price,
     image_url: f.imageUrl ?? null,
+    inventory: f.inventory ?? 0,
   };
 }

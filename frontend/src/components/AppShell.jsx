@@ -22,6 +22,7 @@ const NAV_ITEMS = [
   { to: '/advance-payments', key: 'advancePayments', label: 'Advance Payment Customers' },
   { to: '/revenue', key: 'revenue', label: 'Revenue Section' },
   { to: '/settings', key: 'settings', label: 'Setting Section' },
+  { to: '/employee-management', key: 'employeeManagement', label: 'Employee Management' },
   { to: '/tournament', key: 'tournament', label: 'Tournament', future: true },
 ];
 
@@ -30,6 +31,33 @@ export default function AppShell() {
   const { club_name, expiry_date } = useBranding();
   const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
+
+  // Filter NAV_ITEMS based on permissions
+  const filteredNavItems = NAV_ITEMS.filter((item) => {
+    if (item.future) return true;
+
+    const role = admin?.role;
+    if (role === 'superadmin' || role === 'Club Owner') return true;
+
+    // Sub-Admin Management is only for Club Owners and superadmins
+    if (item.key === 'employeeManagement') return false;
+
+    const mapping = {
+      dashboard: 'dashboard',
+      customers: 'customers',
+      billing: 'billing',
+      tablesPlaystation: 'tables',
+      foodDrink: 'foodDrink',
+      advancePayments: 'advancePay',
+      revenue: 'revenue',
+      settings: 'settings',
+    };
+
+    const permKey = mapping[item.key];
+    if (!permKey) return true;
+
+    return !!admin?.permissions?.[permKey]?.view;
+  });
 
   let daysLeft = null;
   if (expiry_date) {
@@ -60,7 +88,7 @@ export default function AppShell() {
 
       <div className="app-body" style={styles.body}>
         <nav className={`app-sidebar ${menuOpen ? 'open' : ''}`} style={styles.sidebar}>
-          {NAV_ITEMS.map((item) => (
+          {filteredNavItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.future ? '#' : item.to}

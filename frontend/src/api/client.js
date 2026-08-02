@@ -23,14 +23,9 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+    if (error.response && error.response.status === 401) {
       localStorage.removeItem('billiards_token');
       localStorage.removeItem('billiards_admin');
-      
-      // If we got a 403, store the warning message in sessionStorage so the login page can show it
-      if (error.response.data && error.response.data.detail) {
-        sessionStorage.setItem('login_error_message', error.response.data.detail);
-      }
       
       if (window.location.pathname !== '/login') {
         window.location.href = '/login';

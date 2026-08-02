@@ -5,6 +5,7 @@ import Modal from '../components/Modal';
 import { getFoodEmoji } from '../utils/categoryAssets';
 import Food3DModel, { getCategory } from '../components/Food3DModel';
 import { useTranslation } from '../utils/translations';
+import { useAuth } from '../context/AuthContext';
 
 /*
   FRD B.6 - Food & Drink Section:
@@ -12,14 +13,41 @@ import { useTranslation } from '../utils/translations';
     Ordering & Assignment: build a cart, "Assign to Active User" links
     items to a player currently at a table; cost added to their bill.
 */
+const getStockBadgeStyle = (qty) => {
+  if (qty <= 0) {
+    return {
+      background: 'rgba(239, 68, 68, 0.15)',
+      color: '#F87171',
+      border: '1px solid rgba(239, 68, 68, 0.3)',
+    };
+  }
+  if (qty <= 10) {
+    return {
+      background: 'rgba(245, 158, 11, 0.15)',
+      color: '#FBBF24',
+      border: '1px solid rgba(245, 158, 11, 0.3)',
+    };
+  }
+  return {
+    background: 'rgba(16, 185, 129, 0.12)',
+    color: '#34D399',
+    border: '1px solid rgba(16, 185, 129, 0.25)',
+  };
+};
+
 export default function FoodAndDrink() {
   const { t, lang } = useTranslation();
+  const { admin } = useAuth();
+  const canEditFood = admin?.role === 'Club Owner' || admin?.role === 'superadmin' || !!admin?.permissions?.foodDrink?.edit;
+  const canDeleteFood = admin?.role === 'Club Owner' || admin?.role === 'superadmin' || !!admin?.permissions?.foodDrink?.delete;
   const [items, setItems] = useState([]);
   const [activeSessions, setActiveSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
+  const [inventory, setInventory] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
@@ -74,6 +102,7 @@ export default function FoodAndDrink() {
     setIsWalkin(true);
     setTargetSessionId('');
     setSelectedPlayers([]);
+    setDropdownOpen(false);
   };
 
   const getDropdownLabel = () => {
@@ -118,12 +147,52 @@ export default function FoodAndDrink() {
     setSubmitting(true);
     setError('');
     try {
-      await foodApi.create({ name: name.trim(), price: Number(price) });
+      await foodApi.create({
+        name: name.trim(),
+        price: Number(price),
+        inventory: inventory ? Number(inventory) : 0
+      });
       setShowAddModal(false);
       setName('');
       setPrice('');
+      setInventory('');
       load();
       setToast(t('itemAdded'));
+    } catch (err) {
+      setError(err.response?.data?.detail || t('couldNotAddItem'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleEditClick = (item) => {
+    setEditingItem(item);
+    setName(item.name);
+    setPrice(item.price.toString());
+    setInventory(item.inventory.toString());
+    setError('');
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    if (!name.trim() || !price || Number(price) <= 0) {
+      setError(t('enterNameAndPrice'));
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    try {
+      await foodApi.update(editingItem.id, {
+        name: name.trim(),
+        price: Number(price),
+        inventory: inventory ? Number(inventory) : 0
+      });
+      setEditingItem(null);
+      setName('');
+      setPrice('');
+      setInventory('');
+      load();
+      setToast(lang === 'hi' ? 'आइटम अपडेट किया गया' : lang === 'pb' ? 'ਆਈਟਮ ਅਪਡੇਟ ਕੀਤੀ ਗਈ' : 'Item updated successfully');
     } catch (err) {
       setError(err.response?.data?.detail || t('couldNotAddItem'));
     } finally {
@@ -148,8 +217,12 @@ export default function FoodAndDrink() {
   };
 
   const addToCart = (itemId) => {
+    const item = items.find((i) => i.id === itemId);
+    if (!item) return;
     setCart((prev) => {
-      const next = { ...prev, [itemId]: (prev[itemId] || 0) + 1 };
+      const currentQty = prev[itemId] || 0;
+      if (currentQty >= item.inventory) return prev;
+      const next = { ...prev, [itemId]: currentQty + 1 };
       localStorage.setItem('billiards_food_cart', JSON.stringify(next));
       return next;
     });
@@ -200,9 +273,11 @@ export default function FoodAndDrink() {
     <div>
       <div style={styles.headerRow}>
         <h1 style={styles.pageTitle}>{t('foodDrinkTitle')}</h1>
-        <button style={styles.addBtn} onClick={() => setShowAddModal(true)}>
-          + {t('addItem')}
-        </button>
+        {canEditFood && (
+          <button style={styles.addBtn} onClick={() => setShowAddModal(true)}>
+            + {t('addItem')}
+          </button>
+        )}
       </div>
 
       {error && <div style={styles.errorBanner}>{error}</div>}
@@ -244,11 +319,33 @@ export default function FoodAndDrink() {
                   <div style={styles.itemPrice}>₹{item.price.toFixed(2)}</div>
 
                   <div style={styles.cartControls}>
-                    {cart[item.id] ? (
+                    {item.inventory <= 0 ? (
+                      <button
+                        style={{
+                          ...styles.addToCartBtn,
+                          opacity: 0.5,
+                          cursor: 'not-allowed',
+                          pointerEvents: 'none',
+                          background: 'var(--felt-600)',
+                          border: '1px solid var(--felt-500)',
+                          color: 'var(--chalk-400)'
+                        }}
+                        disabled
+                      >
+                        {lang === 'hi' ? 'स्टॉक में नहीं' : lang === 'pb' ? 'ਸਟਾਕ ਵਿੱਚ ਨਹੀਂ' : 'Out of Stock'}
+                      </button>
+                    ) : cart[item.id] ? (
                       <>
                         <button style={styles.qtyBtn} onClick={() => removeFromCart(item.id)}>−</button>
                         <span style={styles.qtyValue}>{cart[item.id]}</span>
-                        <button style={styles.qtyBtn} onClick={() => addToCart(item.id)}>+</button>
+                        <button
+                          style={{
+                            ...styles.qtyBtn,
+                            ...(cart[item.id] >= item.inventory ? { opacity: 0.4, cursor: 'not-allowed', pointerEvents: 'none' } : {})
+                          }}
+                          disabled={cart[item.id] >= item.inventory}
+                          onClick={() => addToCart(item.id)}
+                        >+</button>
                       </>
                     ) : (
                       <button style={styles.addToCartBtn} onClick={() => addToCart(item.id)}>
@@ -257,14 +354,42 @@ export default function FoodAndDrink() {
                     )}
                   </div>
 
-                  <button
-                    style={styles.deleteBtn}
-                    onClick={() => handleDeleteItem(item.id, item.name)}
-                    disabled={deletingId === item.id}
-                    title="Remove this item"
-                  >
-                    <TrashIcon />
-                  </button>
+                  {/* Inventory Under Add to Bag Button */}
+                  <div style={{
+                    fontSize: '0.74rem',
+                    color: item.inventory <= 0 ? '#F87171' : 'var(--chalk-400)',
+                    marginTop: 8,
+                    fontWeight: 500,
+                    textAlign: 'center'
+                  }}>
+                    {item.inventory <= 0 
+                      ? (lang === 'hi' ? 'आउट ऑफ स्टॉक' : lang === 'pb' ? 'ਸਟਾਕ ਖਤਮ' : 'Out of Stock')
+                      : item.inventory <= 10
+                        ? (lang === 'hi' ? `केवल ${item.inventory} शेष` : lang === 'pb' ? `ਸਿਰਫ ${item.inventory} ਬਾਕੀ` : `Only ${item.inventory} left`)
+                        : `${item.inventory} ${lang === 'hi' ? 'स्टॉक में' : lang === 'pb' ? 'ਸਟਾਕ ਵਿੱਚ' : 'in stock'}`}
+                  </div>
+
+                  {/* Floating Absolute Icons at the Top */}
+                  {canEditFood && (
+                    <button
+                      style={styles.editBtn}
+                      onClick={() => handleEditClick(item)}
+                      title="Edit this item"
+                    >
+                      <EditIcon />
+                    </button>
+                  )}
+
+                  {canDeleteFood && (
+                    <button
+                      style={styles.deleteBtn}
+                      onClick={() => handleDeleteItem(item.id, item.name)}
+                      disabled={deletingId === item.id}
+                      title="Remove this item"
+                    >
+                      <TrashIcon />
+                    </button>
+                  )}
                 </div>
               );
             })}
@@ -299,7 +424,14 @@ export default function FoodAndDrink() {
                         <div style={styles.cartLineControls}>
                           <button style={styles.cartQtyBtn} onClick={() => removeFromCart(line.item.id)}>−</button>
                           <span style={styles.cartQtyVal}>{line.qty}</span>
-                          <button style={styles.cartQtyBtn} onClick={() => addToCart(line.item.id)}>+</button>
+                          <button
+                            style={{
+                              ...styles.cartQtyBtn,
+                              ...(line.qty >= line.item.inventory ? { opacity: 0.4, cursor: 'not-allowed', pointerEvents: 'none' } : {})
+                            }}
+                            disabled={line.qty >= line.item.inventory}
+                            onClick={() => addToCart(line.item.id)}
+                          >+</button>
                         </div>
                       </div>
                     );
@@ -345,9 +477,60 @@ export default function FoodAndDrink() {
               onChange={(e) => setPrice(e.target.value)}
               placeholder="e.g. 80"
             />
+            <label style={styles.label}>{lang === 'hi' ? 'इन्वेंटरी (मात्रा)' : lang === 'pb' ? 'ਇਨਵੈਂਟਰੀ (ਮਾਤਰਾ)' : 'Inventory (Quantity)'}</label>
+            <input
+              style={styles.input}
+              type="number"
+              min="0"
+              value={inventory}
+              onChange={(e) => setInventory(e.target.value)}
+              placeholder="e.g. 50"
+            />
             {error && <div style={styles.errorBanner}>{error}</div>}
             <button type="submit" style={styles.submitBtn} disabled={submitting}>
               {submitting ? t('addingEllipsis') : t('addToMenu')}
+            </button>
+          </form>
+        </Modal>
+      )}
+
+      {editingItem && (
+        <Modal title={lang === 'hi' ? 'मेन्यू आइटम संपादित करें' : lang === 'pb' ? 'ਮੇਨੂ ਆਈਟਮ ਸੋਧੋ' : 'Edit Menu Item'} onClose={() => {
+          setEditingItem(null);
+          setName('');
+          setPrice('');
+          setInventory('');
+          setError('');
+        }}>
+          <form onSubmit={handleEditSubmit}>
+            <label style={styles.label}>{t('productName')}</label>
+            <input
+              style={styles.input}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. French Fries"
+            />
+            <label style={styles.label}>{t('priceRs')}</label>
+            <input
+              style={styles.input}
+              type="number"
+              min="1"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              placeholder="e.g. 80"
+            />
+            <label style={styles.label}>{lang === 'hi' ? 'इन्वेंटरी (मात्रा)' : lang === 'pb' ? 'ਇਨਵੈਂਟਰੀ (ਮਾਤਰਾ)' : 'Inventory (Quantity)'}</label>
+            <input
+              style={styles.input}
+              type="number"
+              min="0"
+              value={inventory}
+              onChange={(e) => setInventory(e.target.value)}
+              placeholder="e.g. 50"
+            />
+            {error && <div style={styles.errorBanner}>{error}</div>}
+            <button type="submit" style={styles.submitBtn} disabled={submitting}>
+              {submitting ? (lang === 'hi' ? 'अपडेट किया जा रहा है...' : lang === 'pb' ? 'ਅਪਡੇਟ ਕੀਤਾ ਜਾ ਰਿਹਾ ਹੈ...' : 'Updating...') : (lang === 'hi' ? 'बदलाव सहेजें' : lang === 'pb' ? 'ਤਬਦੀਲੀਆਂ ਸੁਰੱਖਿਅਤ ਕਰੋ' : 'Save Changes')}
             </button>
           </form>
         </Modal>
@@ -467,6 +650,15 @@ function TrashIcon() {
   );
 }
 
+function EditIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+      <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+    </svg>
+  );
+}
+
 const styles = {
   headerRow: {
     display: 'flex',
@@ -538,7 +730,7 @@ const styles = {
   img: { width: '100%', height: '100%', objectFit: 'cover' },
   itemInitial: { fontFamily: 'var(--font-display)', fontSize: '1.6rem', color: 'var(--brass-300)' },
   itemName: { fontWeight: 600, color: 'var(--chalk-100)', fontSize: '0.92rem', padding: '0 10px' },
-  itemPrice: { fontFamily: 'var(--font-mono)', fontSize: '0.82rem', color: 'var(--chalk-400)', marginBottom: 10, padding: '0 10px' },
+  itemPrice: { fontFamily: 'var(--font-mono)', fontSize: '0.9rem', color: 'var(--brass-300)', fontWeight: 700, marginBottom: 10, padding: '0 10px' },
   cartControls: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '0 10px' },
   addToCartBtn: {
     width: '100%',
@@ -632,6 +824,23 @@ const styles = {
     border: '1px solid var(--rail-600)',
     borderRadius: 'var(--radius-sm)',
     color: 'var(--rail-300)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    transition: 'all 0.15s ease',
+    zIndex: 10,
+  },
+  editBtn: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    width: 32,
+    height: 32,
+    background: 'rgba(201, 162, 75, 0.25)',
+    border: '1px solid var(--felt-500)',
+    borderRadius: 'var(--radius-sm)',
+    color: 'var(--brass-300)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { assetsApi } from '../api/endpoints';
+import { useAuth } from '../context/AuthContext';
 import Card from '../components/Card';
 import LiveTimer from '../components/LiveTimer';
 import StartGameModal from '../components/StartGameModal';
@@ -51,6 +52,7 @@ let cachedActiveSessions = null;
 
 export default function Dashboard() {
   const { t, lang } = useTranslation();
+  const { admin } = useAuth();
   const [assets, setAssets] = useState(cachedAssets || []);
   const [activeSessions, setActiveSessions] = useState(cachedActiveSessions || []);
   const [loading, setLoading] = useState(!cachedAssets);
@@ -59,6 +61,8 @@ export default function Dashboard() {
   const [editPlayersSession, setEditPlayersSession] = useState(null);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+
+  const canEditTables = admin?.role === 'Club Owner' || admin?.role === 'superadmin' || !!admin?.permissions?.tables?.edit;
 
   const loadAll = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -255,30 +259,36 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                   {session ? (
-                     <div style={styles.playerNamesContainer}>
-                       <span style={styles.playerNames}>
-                         👤 {session.player_names.join(' · ')}
-                       </span>
-                       <button
-                         style={styles.editPlayersBtn}
-                         onClick={() => setEditPlayersSession(session)}
-                         title="Edit players mid-game"
-                         aria-label="Edit players mid-game"
-                         className="edit-players-midgame-btn"
-                       >
-                         <EditIconMini />
-                       </button>
-                     </div>
-                   ) : (
-                     <div style={styles.playerFallback}>{t('noActiveSession')}</div>
-                   )}
+                  {session ? (
+                    <div style={styles.playerNamesContainer}>
+                      <span style={styles.playerNames}>
+                        👤 {session.player_names.join(' · ')}
+                      </span>
+                      {canEditTables && (
+                        <button
+                          style={styles.editPlayersBtn}
+                          onClick={() => setEditPlayersSession(session)}
+                          title="Edit players mid-game"
+                          aria-label="Edit players mid-game"
+                          className="edit-players-midgame-btn"
+                        >
+                          <EditIconMini />
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={styles.playerFallback}>{t('noActiveSession')}</div>
+                  )}
 
                   <div style={styles.btnRow}>
                     {!session ? (
                       <button
                         id={`start-btn-${asset.id}`}
-                        style={styles.startBtn}
+                        style={{
+                          ...styles.startBtn,
+                          ...(!canEditTables ? styles.disabledBtn : {})
+                        }}
+                        disabled={!canEditTables}
                         onClick={() => setStartModalAsset(asset)}
                       >
                         ▶ {t('startGame')}
@@ -287,14 +297,22 @@ export default function Dashboard() {
                       <>
                         <button
                           id={`pause-btn-${asset.id}`}
-                          style={styles.pauseBtn}
+                          style={{
+                            ...styles.pauseBtn,
+                            ...(!canEditTables ? styles.disabledBtn : {})
+                          }}
+                          disabled={!canEditTables}
                           onClick={() => handlePauseResume(asset.id, session, isPaused)}
                         >
                           {isPaused ? `▶ ${t('resume')}` : `⏸ ${t('pause')}`}
                         </button>
                         <button
                           id={`stop-btn-${asset.id}`}
-                          style={styles.stopBtn}
+                          style={{
+                            ...styles.stopBtn,
+                            ...(!canEditTables ? styles.disabledBtn : {})
+                          }}
+                          disabled={!canEditTables}
                           onClick={() => setCheckoutSession(session)}
                         >
                           ■ {t('checkout')}
@@ -510,6 +528,13 @@ const styles = {
     cursor: 'pointer',
     boxShadow: '0 4px 12px rgba(139, 38, 53, 0.25)',
     transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+  },
+  disabledBtn: {
+    opacity: 0.4,
+    cursor: 'not-allowed',
+    boxShadow: 'none',
+    transform: 'none',
+    pointerEvents: 'none',
   },
   addTablesBtn: {
     background: 'var(--brass-500)',

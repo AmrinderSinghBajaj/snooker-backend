@@ -2,6 +2,7 @@ import { Router } from 'express';
 import GameSession from '../models/GameSession.js';
 import Club from '../models/Club.js';
 import { requireAuth } from '../middleware/auth.js';
+import { requirePermission } from '../middleware/permission.js';
 
 const router = Router();
 
@@ -57,7 +58,7 @@ function formatTransaction(s) {
 /**
  * GET /revenue/today
  */
-router.get('/today', requireAuth, async (req, res) => {
+router.get('/today', requireAuth, requirePermission('revenue', 'view'), async (req, res) => {
   try {
     const now  = new Date();
     const { start, end } = dayWindow(now);
@@ -79,7 +80,7 @@ router.get('/today', requireAuth, async (req, res) => {
 /**
  * GET /revenue/weekly
  */
-router.get('/weekly', requireAuth, async (req, res) => {
+router.get('/weekly', requireAuth, requirePermission('revenue', 'view'), async (req, res) => {
   try {
     const now       = new Date();
     const todayUTC  = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
@@ -110,7 +111,7 @@ router.get('/weekly', requireAuth, async (req, res) => {
 /**
  * GET /revenue/monthly
  */
-router.get('/monthly', requireAuth, async (req, res) => {
+router.get('/monthly', requireAuth, requirePermission('revenue', 'view'), async (req, res) => {
   try {
     const now        = new Date();
     const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
@@ -129,7 +130,7 @@ router.get('/monthly', requireAuth, async (req, res) => {
 /**
  * GET /revenue/drilldown/day
  */
-router.get('/drilldown/day', requireAuth, async (req, res) => {
+router.get('/drilldown/day', requireAuth, requirePermission('revenue', 'view'), async (req, res) => {
   try {
     const { target_date } = req.query;
     if (!target_date) return res.status(422).json({ detail: 'target_date is required (YYYY-MM-DD)' });
@@ -146,7 +147,7 @@ router.get('/drilldown/day', requireAuth, async (req, res) => {
 /**
  * GET /revenue/drilldown/week
  */
-router.get('/drilldown/week', requireAuth, async (req, res) => {
+router.get('/drilldown/week', requireAuth, requirePermission('revenue', 'view'), async (req, res) => {
   try {
     const { week_end } = req.query;
     if (!week_end) return res.status(422).json({ detail: 'week_end is required (YYYY-MM-DD)' });
@@ -180,7 +181,7 @@ router.get('/drilldown/week', requireAuth, async (req, res) => {
 /**
  * GET /revenue/drilldown/month
  */
-router.get('/drilldown/month', requireAuth, async (req, res) => {
+router.get('/drilldown/month', requireAuth, requirePermission('revenue', 'view'), async (req, res) => {
   try {
     const { year, month } = req.query;
     if (!year || !month) return res.status(422).json({ detail: 'year and month are required' });
@@ -212,7 +213,7 @@ router.get('/drilldown/month', requireAuth, async (req, res) => {
 /**
  * GET /revenue/search/date
  */
-router.get('/search/date', requireAuth, async (req, res) => {
+router.get('/search/date', requireAuth, requirePermission('revenue', 'view'), async (req, res) => {
   try {
     const { target_date } = req.query;
     if (!target_date) return res.status(422).json({ detail: 'target_date is required (YYYY-MM-DD)' });
@@ -229,7 +230,7 @@ router.get('/search/date', requireAuth, async (req, res) => {
 /**
  * GET /revenue/search/range
  */
-router.get('/search/range', requireAuth, async (req, res) => {
+router.get('/search/range', requireAuth, requirePermission('revenue', 'view'), async (req, res) => {
   try {
     const { start_date, end_date } = req.query;
     if (!start_date || !end_date) return res.status(422).json({ detail: 'start_date and end_date are required' });

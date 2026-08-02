@@ -5,6 +5,7 @@ const foodItemSchema = new mongoose.Schema({
   name:       { type: String, required: true },
   price:      { type: Number, required: true },
   imageUrl:   { type: String, default: null },
+  inventory:  { type: Number, default: 0 },
   isArchived: { type: Boolean, default: false },
 }, { timestamps: true });
 

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import Asset, { ASSET_CATEGORIES } from '../models/Asset.js';
 import GameSession from '../models/GameSession.js';
 import { requireAuth } from '../middleware/auth.js';
+import { requirePermission } from '../middleware/permission.js';
 import { resolveTenant } from '../middleware/tenant.js';
 import { serializeAsset, serializeActiveSession } from '../utils/serializers.js';
 import { getOrCreateCustomer } from '../utils/customerHelper.js';
@@ -21,7 +22,16 @@ async function nextLabel(category, clubId) {
  * GET /assets
  * Visual Display grid for the Table & PS Setup screen.
  */
-router.get('/', requireAuth, async (req, res) => {
+router.get('/', requireAuth, (req, res, next) => {
+  const user = req.admin;
+  if (user.role === 'Club Owner' || user.role === 'superadmin') {
+    return next();
+  }
+  if (user.permissions?.tables?.view || user.permissions?.dashboard?.view) {
+    return next();
+  }
+  return res.status(403).json({ detail: 'Access denied: Insufficient permissions for tables view.' });
+}, async (req, res) => {
   try {
     const assets = await Asset.find({ clubId: req.admin.clubId, isArchived: false }).sort({ sortOrder: 1, category: 1, createdAt: 1 });
     return res.json(assets.map(serializeAsset));
@@ -35,7 +45,7 @@ router.get('/', requireAuth, async (req, res) => {
  * POST /assets
  * Add a new asset for this club.
  */
-router.post('/', requireAuth, async (req, res) => {
+router.post('/', requireAuth, requirePermission('tables', 'edit'), async (req, res) => {
   try {
     const { category, label: customLabel, hourly_rate, image_url } = req.body;
     if (!ASSET_CATEGORIES.includes(category)) {
@@ -68,7 +78,7 @@ router.post('/', requireAuth, async (req, res) => {
  * DELETE /assets/:id
  * Soft-delete (archive) an asset.
  */
-router.delete('/:id', requireAuth, async (req, res) => {
+router.delete('/:id', requireAuth, requirePermission('tables', 'delete'), async (req, res) => {
   try {
     const asset = await Asset.findOne({ _id: req.params.id, clubId: req.admin.clubId });
     if (!asset) return res.status(404).json({ detail: 'Asset not found' });
@@ -85,7 +95,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
  * PUT /assets/:id
  * Update an asset's label, hourly rate, or sort order (serial number/position).
  */
-router.put('/:id', requireAuth, async (req, res) => {
+router.put('/:id', requireAuth, requirePermission('tables', 'edit'), async (req, res) => {
   try {
     const { label, hourly_rate, sort_order } = req.body;
     const asset = await Asset.findOne({ _id: req.params.id, clubId: req.admin.clubId });
@@ -119,7 +129,7 @@ router.put('/:id', requireAuth, async (req, res) => {
  * GET /assets/active-sessions
  * Powers the Dashboard Table Grid.
  */
-router.get('/active-sessions', requireAuth, async (req, res) => {
+router.get('/active-sessions', requireAuth, requirePermission('dashboard', 'view'), async (req, res) => {
   try {
     const sessions = await GameSession.find({ clubId: req.admin.clubId, status: { $in: ['running', 'paused'] } }).populate('assetId');
     const result = sessions.map((s) => {
@@ -166,7 +176,7 @@ router.get('/public-active-sessions', resolveTenant, async (req, res) => {
  * POST /assets/:id/start
  * Start a clock on the asset.
  */
-router.post('/:id/start', requireAuth, async (req, res) => {
+router.post('/:id/start', requireAuth, requirePermission('tables', 'edit'), async (req, res) => {
   try {
     const asset = await Asset.findOne({ _id: req.params.id, clubId: req.admin.clubId });
     if (!asset) return res.status(404).json({ detail: 'Asset not found' });
@@ -222,7 +232,7 @@ router.post('/:id/start', requireAuth, async (req, res) => {
 /**
  * POST /assets/:id/pause
  */
-router.post('/:id/pause', requireAuth, async (req, res) => {
+router.post('/:id/pause', requireAuth, requirePermission('tables', 'edit'), async (req, res) => {
   try {
     const session = await GameSession.findOne({ assetId: req.params.id, clubId: req.admin.clubId, status: 'running' });
     if (!session) return res.status(404).json({ detail: 'No active session found for this table' });
@@ -241,7 +251,7 @@ router.post('/:id/pause', requireAuth, async (req, res) => {
 /**
  * POST /assets/:id/resume
  */
-router.post('/:id/resume', requireAuth, async (req, res) => {
+router.post('/:id/resume', requireAuth, requirePermission('tables', 'edit'), async (req, res) => {
   try {
     const session = await GameSession.findOne({ assetId: req.params.id, clubId: req.admin.clubId, status: 'paused' });
     if (!session) return res.status(404).json({ detail: 'No paused session found for this table' });
@@ -266,7 +276,7 @@ router.post('/:id/resume', requireAuth, async (req, res) => {
  * PUT /assets/active-sessions/:sessionId/players
  * Update player names in the middle of a game without stopping the timer.
  */
-router.put('/active-sessions/:sessionId/players', requireAuth, async (req, res) => {
+router.put('/active-sessions/:sessionId/players', requireAuth, requirePermission('tables', 'edit'), async (req, res) => {
   try {
     const session = await GameSession.findOne({
       _id: req.params.sessionId,

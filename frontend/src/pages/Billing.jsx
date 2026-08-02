@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from '../utils/translations';
 import { billingApi, customersApi } from '../api/endpoints';
+import { useAuth } from '../context/AuthContext';
 import Card from '../components/Card';
 import Modal from '../components/Modal';
 import EditBillingModal from '../components/EditBillingModal';
@@ -82,6 +83,10 @@ export default function Billing() {
   const [paymentMethodPrompt, setPaymentMethodPrompt] = useState(null);
   const [outstandingDetailPlayer, setOutstandingDetailPlayer] = useState(null);
   const PAGE_SIZE = 15;
+
+  const { admin } = useAuth();
+  const canEditBilling = admin?.role === 'Club Owner' || admin?.role === 'superadmin' || !!admin?.permissions?.billing?.edit;
+  const canDeleteBilling = admin?.role === 'Club Owner' || admin?.role === 'superadmin' || !!admin?.permissions?.billing?.delete;
 
   useEffect(() => {
     setPage(1);
@@ -290,9 +295,11 @@ export default function Billing() {
           <h1 style={styles.pageTitle}>{t('billingTitle')}</h1>
           <p style={styles.subtitle}>{t('billingSubtitle')}</p>
         </div>
-        <button className="billing-add-btn" style={styles.addBtn} onClick={() => setShowManualEntry(true)}>
-          <span style={styles.plusIcon}>+</span> {t('addEntry')}
-        </button>
+        {canEditBilling && (
+          <button className="billing-add-btn" style={styles.addBtn} onClick={() => setShowManualEntry(true)}>
+            <span style={styles.plusIcon}>+</span> {t('addEntry')}
+          </button>
+        )}
       </div>
 
       {/* Tab Navigation */}
@@ -439,18 +446,28 @@ export default function Billing() {
                     ) : (
                       <div style={styles.payBtnRow}>
                         <button
-                          style={styles.paidBtn}
+                          style={{
+                            ...styles.paidBtn,
+                            ...(!canEditBilling ? { opacity: 0.4, cursor: 'not-allowed', pointerEvents: 'none' } : {})
+                          }}
                           onClick={() => setPaymentMethodPrompt({
                             type: 'single',
                             id: r.session_id,
                             playerName: r.player_names.join(', '),
                             amount: r.total_amount
                           })}
-                          disabled={busyId === r.session_id}
+                          disabled={!canEditBilling || busyId === r.session_id}
                         >
                           {t('paid')}
                         </button>
-                        <button style={styles.unpaidBtn} onClick={() => openUnpaid(r)} disabled={busyId === r.session_id}>
+                        <button
+                          style={{
+                            ...styles.unpaidBtn,
+                            ...(!canEditBilling ? { opacity: 0.4, cursor: 'not-allowed', pointerEvents: 'none' } : {})
+                          }}
+                          onClick={() => openUnpaid(r)}
+                          disabled={!canEditBilling || busyId === r.session_id}
+                        >
                           {t('unpaid')}
                         </button>
                       </div>
@@ -461,18 +478,22 @@ export default function Billing() {
                       <button style={styles.iconBtn} onClick={() => openDetail(r)} title="See detail" aria-label="See detail">
                         <EyeIcon />
                       </button>
-                      <button style={styles.iconBtn} onClick={() => setEditRecord(r)} title="Edit" aria-label="Edit">
-                        <EditIcon />
-                      </button>
-                      <button
-                        style={styles.iconBtn}
-                        onClick={() => handleDelete(r)}
-                        title="Remove entry"
-                        aria-label="Remove entry"
-                        disabled={busyId === r.session_id}
-                      >
-                        <TrashIcon />
-                      </button>
+                      {canEditBilling && (
+                        <button style={styles.iconBtn} onClick={() => setEditRecord(r)} title="Edit" aria-label="Edit">
+                          <EditIcon />
+                        </button>
+                      )}
+                      {canDeleteBilling && (
+                        <button
+                          style={styles.iconBtn}
+                          onClick={() => handleDelete(r)}
+                          title="Remove entry"
+                          aria-label="Remove entry"
+                          disabled={busyId === r.session_id}
+                        >
+                          <TrashIcon />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -532,23 +553,25 @@ export default function Billing() {
                       >
                         <EyeIcon />
                       </button>
-                      <button
-                        style={{...styles.iconBtn, ...{color: 'var(--green-go)'}}}
-                        onClick={() => {
-                          setPaymentMethodPrompt({
-                            type: 'all',
-                            id: `mark-all-${item.player_name}`,
-                            playerName: item.player_name,
-                            amount: item.total_outstanding,
-                            records: item.all_records,
-                          });
-                        }}
-                        disabled={busyId === `mark-all-${item.player_name}`}
-                        title="Mark all as paid"
-                        aria-label="Mark all as paid"
-                      >
-                        <CheckmarkIcon />
-                      </button>
+                      {canEditBilling && (
+                        <button
+                          style={{...styles.iconBtn, ...{color: 'var(--green-go)'}}}
+                          onClick={() => {
+                            setPaymentMethodPrompt({
+                              type: 'all',
+                              id: `mark-all-${item.player_name}`,
+                              playerName: item.player_name,
+                              amount: item.total_outstanding,
+                              records: item.all_records,
+                            });
+                          }}
+                          disabled={busyId === `mark-all-${item.player_name}`}
+                          title="Mark all as paid"
+                          aria-label="Mark all as paid"
+                        >
+                          <CheckmarkIcon />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

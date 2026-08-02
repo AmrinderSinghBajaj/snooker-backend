@@ -2,6 +2,7 @@ import { Router } from 'express';
 import Customer from '../models/Customer.js';
 import GameSession from '../models/GameSession.js';
 import { requireAuth } from '../middleware/auth.js';
+import { requirePermission } from '../middleware/permission.js';
 import { serializeCustomer } from '../utils/serializers.js';
 import { getOrCreateCustomer } from '../utils/customerHelper.js';
 import WalletTransaction from '../models/WalletTransaction.js';
@@ -45,14 +46,14 @@ const handleCreateCustomer = async (req, res) => {
   }
 };
 
-router.post('/', requireAuth, handleCreateCustomer);
-router.post('/create', requireAuth, handleCreateCustomer);
+router.post('/', requireAuth, requirePermission('customers', 'edit'), handleCreateCustomer);
+router.post('/create', requireAuth, requirePermission('customers', 'edit'), handleCreateCustomer);
 
 /**
  * GET /customers
  * Customer Log filtered by club.
  */
-router.get('/', requireAuth, async (req, res) => {
+router.get('/', requireAuth, requirePermission('customers', 'view'), async (req, res) => {
   try {
     const customers = await Customer.find({ clubId: req.admin.clubId }).sort({ createdAt: -1 });
     return res.json(customers.map(serializeCustomer));
@@ -66,7 +67,7 @@ router.get('/', requireAuth, async (req, res) => {
  * GET /customers/wallet/summary
  * Customers with wallet balance summary.
  */
-router.get('/wallet/summary', requireAuth, async (req, res) => {
+router.get('/wallet/summary', requireAuth, requirePermission('advancePay', 'view'), async (req, res) => {
   try {
     const walletCustomerIds = await WalletTransaction.distinct('customerId', { clubId: req.admin.clubId });
     const customers = await Customer.find({
@@ -92,7 +93,7 @@ router.get('/wallet/summary', requireAuth, async (req, res) => {
  * POST /customers/:id/wallet/add
  * Add advance money to a customer's wallet.
  */
-router.post('/:id/wallet/add', requireAuth, async (req, res) => {
+router.post('/:id/wallet/add', requireAuth, requirePermission('advancePay', 'edit'), async (req, res) => {
   try {
     const { amount, payment_method, note } = req.body || {};
     const addAmt = Number(amount);
@@ -141,7 +142,7 @@ router.post('/:id/wallet/add', requireAuth, async (req, res) => {
  * GET /customers/:id/wallet/history
  * Transaction logs for a customer's wallet.
  */
-router.get('/:id/wallet/history', requireAuth, async (req, res) => {
+router.get('/:id/wallet/history', requireAuth, requirePermission('advancePay', 'view'), async (req, res) => {
   try {
     const customer = await Customer.findOne({ _id: req.params.id, clubId: req.admin.clubId });
     if (!customer) {
@@ -173,7 +174,7 @@ router.get('/:id/wallet/history', requireAuth, async (req, res) => {
  * GET /customers/stats
  * Customer stats aggregated and filtered by club.
  */
-router.get('/stats', requireAuth, async (req, res) => {
+router.get('/stats', requireAuth, requirePermission('customers', 'view'), async (req, res) => {
   try {
     // 1. Aggregate spending per customer from GameSession.players, filtered by clubId
     const targetId = req.admin.clubId && req.admin.clubId._id ? req.admin.clubId._id : req.admin.clubId;
@@ -231,7 +232,7 @@ router.get('/stats', requireAuth, async (req, res) => {
  * DELETE /customers/:id
  * Delete a customer record by ID, scoped by clubId.
  */
-router.delete('/:id', requireAuth, async (req, res) => {
+router.delete('/:id', requireAuth, requirePermission('customers', 'delete'), async (req, res) => {
   try {
     const customer = await Customer.findOneAndDelete({ _id: req.params.id, clubId: req.admin.clubId });
     if (!customer) {

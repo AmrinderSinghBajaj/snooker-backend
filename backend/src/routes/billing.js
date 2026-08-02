@@ -4,6 +4,7 @@ import Asset from '../models/Asset.js';
 import Customer from '../models/Customer.js';
 import WalletTransaction from '../models/WalletTransaction.js';
 import { requireAuth } from '../middleware/auth.js';
+import { requirePermission } from '../middleware/permission.js';
 import { serializeBillingRecord, serializeSessionDetail } from '../utils/serializers.js';
 import { getOrCreateCustomer } from '../utils/customerHelper.js';
 import { nextSerialNumber } from '../utils/serial.js';
@@ -33,7 +34,7 @@ async function resolveLabelAndRate(session) {
 /**
  * POST /billing/:sessionId/stop
  */
-router.post('/:sessionId/stop', requireAuth, async (req, res) => {
+router.post('/:sessionId/stop', requireAuth, requirePermission('billing', 'edit'), async (req, res) => {
   try {
     const session = await GameSession.findOne({ _id: req.params.sessionId, clubId: req.admin.clubId });
     if (!session) return res.status(404).json({ detail: 'Session not found' });
@@ -76,7 +77,7 @@ router.post('/:sessionId/stop', requireAuth, async (req, res) => {
 /**
  * POST /billing/:sessionId/cancel-stop
  */
-router.post('/:sessionId/cancel-stop', requireAuth, async (req, res) => {
+router.post('/:sessionId/cancel-stop', requireAuth, requirePermission('billing', 'edit'), async (req, res) => {
   try {
     const session = await GameSession.findOne({ _id: req.params.sessionId, clubId: req.admin.clubId });
     if (!session) return res.status(404).json({ detail: 'Session not found' });
@@ -112,7 +113,7 @@ router.post('/:sessionId/cancel-stop', requireAuth, async (req, res) => {
 /**
  * POST /billing/:sessionId/split
  */
-router.post('/:sessionId/split', requireAuth, async (req, res) => {
+router.post('/:sessionId/split', requireAuth, requirePermission('billing', 'edit'), async (req, res) => {
   try {
     const session = await GameSession.findOne({ _id: req.params.sessionId, clubId: req.admin.clubId });
     if (!session) return res.status(404).json({ detail: 'Session not found' });
@@ -166,7 +167,7 @@ router.post('/:sessionId/split', requireAuth, async (req, res) => {
 /**
  * POST /billing/:sessionId/done
  */
-router.post('/:sessionId/done', requireAuth, async (req, res) => {
+router.post('/:sessionId/done', requireAuth, requirePermission('billing', 'edit'), async (req, res) => {
   try {
     const session = await GameSession.findOne({ _id: req.params.sessionId, clubId: req.admin.clubId });
     if (!session) return res.status(404).json({ detail: 'Session not found' });
@@ -283,7 +284,7 @@ router.post('/:sessionId/done', requireAuth, async (req, res) => {
 /**
  * GET /billing/records
  */
-router.get('/records', requireAuth, async (req, res) => {
+router.get('/records', requireAuth, requirePermission('billing', 'view'), async (req, res) => {
   try {
     const sessions = await GameSession.find({ clubId: req.admin.clubId, status: 'billed' }).sort({ serialNumber: -1 });
 
@@ -302,7 +303,7 @@ router.get('/records', requireAuth, async (req, res) => {
 /**
  * POST /billing/:sessionId/paid
  */
-router.post('/:sessionId/paid', requireAuth, async (req, res) => {
+router.post('/:sessionId/paid', requireAuth, requirePermission('billing', 'edit'), async (req, res) => {
   try {
     const session = await GameSession.findOne({ _id: req.params.sessionId, clubId: req.admin.clubId });
     if (!session) return res.status(404).json({ detail: 'Session not found' });
@@ -425,7 +426,7 @@ router.post('/:sessionId/paid', requireAuth, async (req, res) => {
 /**
  * POST /billing/:sessionId/unpaid
  */
-router.post('/:sessionId/unpaid', requireAuth, async (req, res) => {
+router.post('/:sessionId/unpaid', requireAuth, requirePermission('billing', 'edit'), async (req, res) => {
   try {
     const session = await GameSession.findOne({ _id: req.params.sessionId, clubId: req.admin.clubId });
     if (!session) return res.status(404).json({ detail: 'Session not found' });
@@ -456,7 +457,7 @@ router.post('/:sessionId/unpaid', requireAuth, async (req, res) => {
 /**
  * GET /billing/:sessionId/detail
  */
-router.get('/:sessionId/detail', requireAuth, async (req, res) => {
+router.get('/:sessionId/detail', requireAuth, requirePermission('billing', 'view'), async (req, res) => {
   try {
     const session = await GameSession.findOne({ _id: req.params.sessionId, clubId: req.admin.clubId });
     if (!session) return res.status(404).json({ detail: 'Session not found' });
@@ -472,7 +473,7 @@ router.get('/:sessionId/detail', requireAuth, async (req, res) => {
 /**
  * PUT /billing/:sessionId/edit
  */
-router.put('/:sessionId/edit', requireAuth, async (req, res) => {
+router.put('/:sessionId/edit', requireAuth, requirePermission('billing', 'edit'), async (req, res) => {
   try {
     const session = await GameSession.findOne({ _id: req.params.sessionId, clubId: req.admin.clubId });
     if (!session) return res.status(404).json({ detail: 'Billing record not found' });
@@ -540,7 +541,7 @@ router.put('/:sessionId/edit', requireAuth, async (req, res) => {
 /**
  * POST /billing/manual-entry
  */
-router.post('/manual-entry', requireAuth, async (req, res) => {
+router.post('/manual-entry', requireAuth, requirePermission('billing', 'edit'), async (req, res) => {
   try {
     const {
       asset_label, player_names, start_time, stop_time,
@@ -603,7 +604,7 @@ router.post('/manual-entry', requireAuth, async (req, res) => {
 /**
  * DELETE /billing/:sessionId
  */
-router.delete('/:sessionId', requireAuth, async (req, res) => {
+router.delete('/:sessionId', requireAuth, requirePermission('billing', 'delete'), async (req, res) => {
   try {
     const session = await GameSession.findOne({ _id: req.params.sessionId, clubId: req.admin.clubId });
     if (!session) return res.status(404).json({ detail: 'Billing record not found' });

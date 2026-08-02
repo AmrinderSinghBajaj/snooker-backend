@@ -2,6 +2,7 @@ import { Router } from 'express';
 import FoodItem from '../models/FoodItem.js';
 import GameSession from '../models/GameSession.js';
 import { requireAuth } from '../middleware/auth.js';
+import { requirePermission } from '../middleware/permission.js';
 import { serializeFoodItem } from '../utils/serializers.js';
 import { nextSerialNumber } from '../utils/serial.js';
 import { getOrCreateCustomer } from '../utils/customerHelper.js';
@@ -12,7 +13,7 @@ const router = Router();
  * GET /food/items
  * Get food items for this club.
  */
-router.get('/items', requireAuth, async (req, res) => {
+router.get('/items', requireAuth, requirePermission('foodDrink', 'view'), async (req, res) => {
   try {
     const items = await FoodItem.find({ clubId: req.admin.clubId, isArchived: false }).sort({ name: 1 });
     return res.json(items.map(serializeFoodItem));
@@ -26,9 +27,9 @@ router.get('/items', requireAuth, async (req, res) => {
  * POST /food/items
  * Create a new food item.
  */
-router.post('/items', requireAuth, async (req, res) => {
+router.post('/items', requireAuth, requirePermission('foodDrink', 'edit'), async (req, res) => {
   try {
-    const { name, price, image_url } = req.body;
+    const { name, price, image_url, inventory } = req.body;
     if (!name?.trim()) return res.status(422).json({ detail: 'Name is required' });
     if (!price || Number(price) <= 0) return res.status(422).json({ detail: 'Price must be greater than 0' });
 
@@ -37,6 +38,7 @@ router.post('/items', requireAuth, async (req, res) => {
       name: name.trim(),
       price: Number(price),
       imageUrl: image_url ?? null,
+      inventory: Number(inventory) || 0,
     });
     return res.status(201).json(serializeFoodItem(item));
   } catch (err) {
@@ -49,7 +51,7 @@ router.post('/items', requireAuth, async (req, res) => {
  * DELETE /food/items/:id
  * Soft-delete a food item.
  */
-router.delete('/items/:id', requireAuth, async (req, res) => {
+router.delete('/items/:id', requireAuth, requirePermission('foodDrink', 'delete'), async (req, res) => {
   try {
     const item = await FoodItem.findOne({ _id: req.params.id, clubId: req.admin.clubId });
     if (!item) return res.status(404).json({ detail: 'Item not found' });
@@ -63,10 +65,41 @@ router.delete('/items/:id', requireAuth, async (req, res) => {
 });
 
 /**
+ * PUT /food/items/:id
+ * Update food item details (name, price, inventory).
+ */
+router.put('/items/:id', requireAuth, requirePermission('foodDrink', 'edit'), async (req, res) => {
+  try {
+    const { name, price, inventory } = req.body;
+    const item = await FoodItem.findOne({ _id: req.params.id, clubId: req.admin.clubId });
+    if (!item) return res.status(404).json({ detail: 'Item not found' });
+
+    if (name?.trim() !== undefined) {
+      if (!name.trim()) return res.status(422).json({ detail: 'Name is required' });
+      item.name = name.trim();
+    }
+    if (price !== undefined) {
+      if (Number(price) <= 0) return res.status(422).json({ detail: 'Price must be greater than 0' });
+      item.price = Number(price);
+    }
+    if (inventory !== undefined) {
+      if (Number(inventory) < 0) return res.status(422).json({ detail: 'Inventory cannot be negative' });
+      item.inventory = Number(inventory);
+    }
+
+    await item.save();
+    return res.json(serializeFoodItem(item));
+  } catch (err) {
+    console.error('PUT /food/items/:id', err);
+    return res.status(500).json({ detail: 'Internal server error' });
+  }
+});
+
+/**
  * POST /food/assign
  * Assign items to an active session or create a Walk-in Guest session.
  */
-router.post('/assign', requireAuth, async (req, res) => {
+router.post('/assign', requireAuth, requirePermission('foodDrink', 'edit'), async (req, res) => {
   try {
     const { session_id, lines, ordered_by } = req.body;
     if (!session_id) return res.status(422).json({ detail: 'session_id is required' });
@@ -75,12 +108,16 @@ router.post('/assign', requireAuth, async (req, res) => {
     let addedTotal = 0;
     const foodOrders = [];
 
-    // Process all lines first to validate food items and calculate total cost
+    // Process all lines first to validate food items, check inventory, and calculate total cost
     for (const cartLine of lines) {
       const item = await FoodItem.findOne({ _id: cartLine.food_item_id, clubId: req.admin.clubId });
       if (!item) return res.status(404).json({ detail: `Food item ${cartLine.food_item_id} not found` });
 
       const qty = Number(cartLine.quantity) || 1;
+      if (item.inventory < qty) {
+        return res.status(400).json({ detail: `Insufficient inventory for ${item.name}. Only ${item.inventory} left.` });
+      }
+
       foodOrders.push({
         foodItemId: item._id,
         name:       item.name,
@@ -89,6 +126,15 @@ router.post('/assign', requireAuth, async (req, res) => {
         orderedBy:  ordered_by || null,
       });
       addedTotal += item.price * qty;
+    }
+
+    // Atomically decrement inventory for all items
+    for (const cartLine of lines) {
+      const qty = Number(cartLine.quantity) || 1;
+      await FoodItem.updateOne(
+        { _id: cartLine.food_item_id, clubId: req.admin.clubId },
+        { $inc: { inventory: -qty } }
+      );
     }
 
     let resolvedPayerCids = [];

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import api from '../api/client';
 import { customersApi } from '../api/endpoints';
 import { useTranslation } from '../utils/translations';
+import { useAuth } from '../context/AuthContext';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n) =>
@@ -47,7 +48,10 @@ function StatCard({ label, value, sub, accent }) {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function Customers() {
   const { t, lang } = useTranslation();
+  const { admin } = useAuth();
   const [customers, setCustomers] = useState([]);
+  
+  const canDeleteCustomer = admin?.role === 'Club Owner' || admin?.role === 'superadmin' || !!admin?.permissions?.customers?.delete;
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState('');
   const [search, setSearch]       = useState('');
@@ -220,13 +224,15 @@ export default function Customers() {
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <RankBadge rank={rank} />
-                        <button
-                          style={styles.cardDeleteBtn}
-                          onClick={() => handleDeleteCustomer(c.id, c.display_name)}
-                          title="Delete player"
-                        >
-                          <TrashIcon />
-                        </button>
+                        {canDeleteCustomer && (
+                          <button
+                            style={styles.cardDeleteBtn}
+                            onClick={() => handleDeleteCustomer(c.id, c.display_name)}
+                            title="Delete player"
+                          >
+                            <TrashIcon />
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -288,13 +294,15 @@ export default function Customers() {
                         <td style={tableStyles.td}>{relativeTime(c.last_visit, lang)}</td>
                         <td style={tableStyles.td}>{new Date(c.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
                         <td style={{ ...tableStyles.td, textAlign: 'right' }}>
-                          <button
-                            style={styles.deleteBtn}
-                            onClick={() => handleDeleteCustomer(c.id, c.display_name)}
-                            title={lang === 'hi' ? 'खिलाड़ी हटाएं' : lang === 'pb' ? 'ਖਿਡਾਰੀ ਹਟਾਓ' : 'Delete player'}
-                          >
-                            <TrashIcon />
-                          </button>
+                          {canDeleteCustomer && (
+                            <button
+                              style={styles.deleteBtn}
+                              onClick={() => handleDeleteCustomer(c.id, c.display_name)}
+                              title={lang === 'hi' ? 'खिलाड़ी हटाएं' : lang === 'pb' ? 'ਖਿਡਾਰੀ ਹਟਾਓ' : 'Delete player'}
+                            >
+                              <TrashIcon />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );

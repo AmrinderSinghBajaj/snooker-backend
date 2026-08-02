@@ -14,6 +14,7 @@ import Revenue from './pages/Revenue';
 import TvDashboard from './pages/TvDashboard';
 import Settings from './pages/Settings';
 import AdvancePayments from './pages/AdvancePayments';
+import EmployeeManagement from './pages/EmployeeManagement';
 
 function SplashGuard({ children }) {
   const introDone = sessionStorage.getItem('intro_done');
@@ -49,6 +50,7 @@ export default function App() {
               <Route path="/advance-payments" element={<AdvancePayments />} />
               <Route path="/revenue" element={<Revenue />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/employee-management" element={<EmployeeManagement />} />
             </Route>
 
             <Route path="/" element={<IntroAnimation />} />

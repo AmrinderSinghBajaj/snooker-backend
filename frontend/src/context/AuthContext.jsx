@@ -16,38 +16,26 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const token = localStorage.getItem('billiards_token');
     if (token) {
-      if (!admin) {
-        authApi.me()
-          .then((res) => {
-            setAdmin(res.data);
-            localStorage.setItem('billiards_admin', JSON.stringify(res.data));
-            if (res.data.subdomain) {
-              const currentTenant = sessionStorage.getItem('tenant_id');
-              if (currentTenant !== res.data.subdomain) {
-                sessionStorage.setItem('tenant_id', res.data.subdomain);
-                api.get('/branding', { params: { club: res.data.subdomain } })
-                  .then(brandingRes => updateBranding(brandingRes.data))
-                  .catch(err => console.error(err));
-              }
+      authApi.me()
+        .then((res) => {
+          setAdmin(res.data);
+          localStorage.setItem('billiards_admin', JSON.stringify(res.data));
+          if (res.data.subdomain) {
+            const currentTenant = sessionStorage.getItem('tenant_id');
+            if (currentTenant !== res.data.subdomain) {
+              sessionStorage.setItem('tenant_id', res.data.subdomain);
+              api.get('/branding', { params: { club: res.data.subdomain } })
+                .then(brandingRes => updateBranding(brandingRes.data))
+                .catch(err => console.error(err));
             }
-          })
-          .catch(() => {
-            localStorage.removeItem('billiards_token');
-          })
-          .finally(() => setLoading(false));
-      } else {
-        // Session exists in localStorage, ensure sessionStorage matches the user's club subdomain
-        if (admin.subdomain) {
-          const currentTenant = sessionStorage.getItem('tenant_id');
-          if (currentTenant !== admin.subdomain) {
-            sessionStorage.setItem('tenant_id', admin.subdomain);
-            api.get('/branding', { params: { club: admin.subdomain } })
-              .then(brandingRes => updateBranding(brandingRes.data))
-              .catch(err => console.error(err));
           }
-        }
-        setLoading(false);
-      }
+        })
+        .catch(() => {
+          localStorage.removeItem('billiards_token');
+          localStorage.removeItem('billiards_admin');
+          setAdmin(null);
+        })
+        .finally(() => setLoading(false));
     } else {
       setLoading(false);
     }

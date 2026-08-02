@@ -4,6 +4,7 @@ import Card from '../components/Card';
 import Modal from '../components/Modal';
 import { getCategoryConfig } from '../utils/categoryAssets';
 import { useTranslation } from '../utils/translations';
+import { useAuth } from '../context/AuthContext';
 
 const CATEGORIES = ['Snooker', 'Pool', 'Heyball', 'PlayStation', 'Chess', 'Carrom'];
 
@@ -15,6 +16,9 @@ const CATEGORIES = ['Snooker', 'Pool', 'Heyball', 'PlayStation', 'Chess', 'Carro
 */
 export default function TableSetup() {
   const { t, lang } = useTranslation();
+  const { admin } = useAuth();
+  const canEditTables = admin?.role === 'Club Owner' || admin?.role === 'superadmin' || !!admin?.permissions?.tables?.edit;
+  const canDeleteTables = admin?.role === 'Club Owner' || admin?.role === 'superadmin' || !!admin?.permissions?.tables?.delete;
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -112,9 +116,11 @@ export default function TableSetup() {
     <div>
       <div style={styles.headerRow}>
         <h1 style={styles.pageTitle}>{t('tablePlaystationSetup')}</h1>
-        <button style={styles.addBtn} onClick={() => setShowAddModal(true)}>
-          + {t('add')}
-        </button>
+        {canEditTables && (
+          <button style={styles.addBtn} onClick={() => setShowAddModal(true)}>
+            + {t('add')}
+          </button>
+        )}
       </div>
 
       {loading && <p style={{ color: 'var(--chalk-400)' }}>{t('loading')}</p>}
@@ -172,6 +178,7 @@ export default function TableSetup() {
                         type="number"
                         min="0"
                         step="1"
+                        disabled={!canEditTables}
                         style={styles.sortOrderInput}
                         value={item.sort_order ?? ''}
                         onChange={(e) => handleUpdateSortOrder(item.id, e.target.value)}
@@ -187,14 +194,16 @@ export default function TableSetup() {
                     </div>
                   </div>
 
-                  <button
-                    style={styles.deleteBtn}
-                    onClick={() => handleDelete(item.id, item.label)}
-                    disabled={deletingId === item.id}
-                    title="Remove this table/device"
-                  >
-                    <TrashIcon />
-                  </button>
+                  {canDeleteTables && (
+                    <button
+                      style={styles.deleteBtn}
+                      onClick={() => handleDelete(item.id, item.label)}
+                      disabled={deletingId === item.id}
+                      title="Remove this table/device"
+                    >
+                      <TrashIcon />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

@@ -42,6 +42,7 @@ export const billingApi = {
 export const foodApi = {
   list: () => api.get('/food/items'),
   create: (data) => api.post('/food/items', data),
+  update: (id, data) => api.put(`/food/items/${id}`, data),
   archive: (id) => api.delete(`/food/items/${id}`),
   assign: (sessionId, lines, orderedBy) => api.post('/food/assign', { session_id: sessionId, lines, ordered_by: orderedBy }),
 };
@@ -69,4 +70,11 @@ export const customersApi = {
 
 export const brandingApi = {
   updateSettings: (data) => api.put('/branding/settings', data),
+};
+
+export const staffApi = {
+  list: () => api.get('/staff'),
+  create: (data) => api.post('/staff', data),
+  update: (id, data) => api.put(`/staff/${id}`, data),
+  remove: (id) => api.delete(`/staff/${id}`),
 };
