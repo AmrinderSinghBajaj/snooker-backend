@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useBranding } from '../context/BrandingContext';
 import Logo from '../components/Logo';
+import { secureSessionStorage } from '../utils/storage';
 
 /*
   FRD B.1 - Initial Screen (Animation):
@@ -44,10 +45,10 @@ export default function Login() {
   }, [introDone]);
 
   useEffect(() => {
-    const redirectMsg = sessionStorage.getItem('login_error_message');
+    const redirectMsg = secureSessionStorage.getItem('login_error_message');
     if (redirectMsg) {
       setError(redirectMsg);
-      sessionStorage.removeItem('login_error_message');
+      secureSessionStorage.removeItem('login_error_message');
     }
   }, []);
 

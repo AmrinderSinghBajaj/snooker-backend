@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import api from '../api/client';
+import { secureSessionStorage } from '../utils/storage';
 
 const BrandingContext = createContext(null);
 
@@ -76,13 +77,13 @@ export function BrandingProvider({ children }) {
     const urlParams = new URLSearchParams(window.location.search);
     const clubParam = urlParams.get('club');
     if (clubParam) {
-      sessionStorage.setItem('tenant_id', clubParam);
+      secureSessionStorage.setItem('tenant_id', clubParam);
       detectedTenant = clubParam;
     }
 
     // 2. Fall back to sessionStorage if already set (e.g. from user login)
     if (!detectedTenant) {
-      detectedTenant = sessionStorage.getItem('tenant_id');
+      detectedTenant = secureSessionStorage.getItem('tenant_id');
     }
 
     // 3. Fall back to window domain name for custom domains
@@ -95,7 +96,7 @@ export function BrandingProvider({ children }) {
 
     // Persist resolved tenant
     if (detectedTenant) {
-      sessionStorage.setItem('tenant_id', detectedTenant);
+      secureSessionStorage.setItem('tenant_id', detectedTenant);
     }
 
     // 4. Fetch branding for the resolved tenant
@@ -106,7 +107,7 @@ export function BrandingProvider({ children }) {
 
         // Save resolved tenant subdomain to sessionStorage so headers send it
         if (data.subdomain) {
-          sessionStorage.setItem('tenant_id', data.subdomain);
+          secureSessionStorage.setItem('tenant_id', data.subdomain);
         }
 
         // 5. Dynamically apply custom white-labeled themes using CSS variables

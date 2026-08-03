@@ -6,6 +6,7 @@ import { getFoodEmoji } from '../utils/categoryAssets';
 import Food3DModel, { getCategory } from '../components/Food3DModel';
 import { useTranslation } from '../utils/translations';
 import { useAuth } from '../context/AuthContext';
+import { secureStorage } from '../utils/storage';
 
 /*
   FRD B.6 - Food & Drink Section:
@@ -55,7 +56,7 @@ export default function FoodAndDrink() {
 
   const [cart, setCart] = useState(() => {
     try {
-      const saved = localStorage.getItem('billiards_food_cart');
+      const saved = secureStorage.getItem('billiards_food_cart');
       return saved ? JSON.parse(saved) : {};
     } catch {
       return {};
@@ -223,7 +224,7 @@ export default function FoodAndDrink() {
       const currentQty = prev[itemId] || 0;
       if (currentQty >= item.inventory) return prev;
       const next = { ...prev, [itemId]: currentQty + 1 };
-      localStorage.setItem('billiards_food_cart', JSON.stringify(next));
+      secureStorage.setItem('billiards_food_cart', JSON.stringify(next));
       return next;
     });
   };
@@ -233,7 +234,7 @@ export default function FoodAndDrink() {
       const next = { ...prev };
       if (next[itemId] > 1) next[itemId] -= 1;
       else delete next[itemId];
-      localStorage.setItem('billiards_food_cart', JSON.stringify(next));
+      secureStorage.setItem('billiards_food_cart', JSON.stringify(next));
       return next;
     });
   };
@@ -259,7 +260,7 @@ export default function FoodAndDrink() {
 
       await foodApi.assign(sessionIdPayload, lines, orderedByPayload);
       setCart({});
-      localStorage.removeItem('billiards_food_cart');
+      secureStorage.removeItem('billiards_food_cart');
       setShowAssignModal(false);
       load();
     } catch (err) {

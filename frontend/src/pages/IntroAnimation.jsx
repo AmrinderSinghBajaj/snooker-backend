@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { useAuth } from '../context/AuthContext';
 import { useBranding } from '../context/BrandingContext';
 import Logo from '../components/Logo';
+import { secureSessionStorage } from '../utils/storage';
 
 export default function IntroAnimation() {
   const containerRef = useRef(null);
@@ -15,7 +16,7 @@ export default function IntroAnimation() {
   // Authenticated or unauthenticated users bypass the intro animation if they already watched it in this session
   useEffect(() => {
     if (!loading) {
-      const introDone = sessionStorage.getItem('intro_done');
+      const introDone = secureSessionStorage.getItem('intro_done');
       if (introDone) {
         if (admin) {
           navigate('/dashboard', { replace: true });
@@ -28,7 +29,7 @@ export default function IntroAnimation() {
 
   const handleTransition = () => {
     setFadingOut(true);
-    sessionStorage.setItem('intro_done', 'true');
+    secureSessionStorage.setItem('intro_done', 'true');
     setTimeout(() => {
       if (admin) {
         navigate('/dashboard', { replace: true });
@@ -44,7 +45,7 @@ export default function IntroAnimation() {
 
   useEffect(() => {
     if (loading) return;
-    const introDone = sessionStorage.getItem('intro_done');
+    const introDone = secureSessionStorage.getItem('intro_done');
     if (introDone) return;
 
     if (!containerRef.current) return;

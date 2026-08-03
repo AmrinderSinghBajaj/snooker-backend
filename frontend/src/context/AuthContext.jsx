@@ -2,28 +2,34 @@ import { createContext, useContext, useState, useEffect } from 'react';
 import { authApi } from '../api/endpoints';
 import { useBranding } from './BrandingContext';
 import api from '../api/client';
+import { secureStorage, secureSessionStorage } from '../utils/storage';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const { updateBranding } = useBranding();
   const [admin, setAdmin] = useState(() => {
-    const stored = localStorage.getItem('billiards_admin');
-    return stored ? JSON.parse(stored) : null;
+    try {
+      const stored = secureStorage.getItem('billiards_admin');
+      return stored ? JSON.parse(stored) : null;
+    } catch (e) {
+      console.error('Failed to parse stored admin:', e);
+      return null;
+    }
   });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('billiards_token');
+    const token = secureStorage.getItem('billiards_token');
     if (token) {
       authApi.me()
         .then((res) => {
           setAdmin(res.data);
-          localStorage.setItem('billiards_admin', JSON.stringify(res.data));
+          secureStorage.setItem('billiards_admin', JSON.stringify(res.data));
           if (res.data.subdomain) {
-            const currentTenant = sessionStorage.getItem('tenant_id');
+            const currentTenant = secureSessionStorage.getItem('tenant_id');
             if (currentTenant !== res.data.subdomain) {
-              sessionStorage.setItem('tenant_id', res.data.subdomain);
+              secureSessionStorage.setItem('tenant_id', res.data.subdomain);
               api.get('/branding', { params: { club: res.data.subdomain } })
                 .then(brandingRes => updateBranding(brandingRes.data))
                 .catch(err => console.error(err));
@@ -31,8 +37,8 @@ export function AuthProvider({ children }) {
           }
         })
         .catch(() => {
-          localStorage.removeItem('billiards_token');
-          localStorage.removeItem('billiards_admin');
+          secureStorage.removeItem('billiards_token');
+          secureStorage.removeItem('billiards_admin');
           setAdmin(null);
         })
         .finally(() => setLoading(false));
@@ -45,10 +51,10 @@ export function AuthProvider({ children }) {
   const login = async (username, password) => {
     const res = await authApi.login(username, password);
     const { access_token, ...adminInfo } = res.data;
-    localStorage.setItem('billiards_token', access_token);
-    localStorage.setItem('billiards_admin', JSON.stringify(adminInfo));
+    secureStorage.setItem('billiards_token', access_token);
+    secureStorage.setItem('billiards_admin', JSON.stringify(adminInfo));
     if (adminInfo.subdomain) {
-      sessionStorage.setItem('tenant_id', adminInfo.subdomain);
+      secureSessionStorage.setItem('tenant_id', adminInfo.subdomain);
       try {
         // Fetch branding details for the logged-in club and update global branding state
         const brandingRes = await api.get('/branding', { params: { club: adminInfo.subdomain } });
@@ -65,9 +71,9 @@ export function AuthProvider({ children }) {
     authApi.logout()
       .catch((err) => console.error('Server logout failed:', err))
       .finally(() => {
-        localStorage.removeItem('billiards_token');
-        localStorage.removeItem('billiards_admin');
-        sessionStorage.removeItem('tenant_id');
+        secureStorage.removeItem('billiards_token');
+        secureStorage.removeItem('billiards_admin');
+        secureSessionStorage.removeItem('tenant_id');
         setAdmin(null);
         window.location.href = '/login';
       });

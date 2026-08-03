@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { assetsApi } from '../api/endpoints';
 import { useAuth } from '../context/AuthContext';
+import { secureSessionStorage } from '../utils/storage';
 import Card from '../components/Card';
 import LiveTimer from '../components/LiveTimer';
 import StartGameModal from '../components/StartGameModal';
@@ -165,7 +166,7 @@ export default function Dashboard() {
           <button
             style={styles.tvBtn}
             onClick={() => {
-              const tenantId = sessionStorage.getItem('tenant_id');
+              const tenantId = secureSessionStorage.getItem('tenant_id');
               const tvUrl = tenantId ? `/tv?club=${tenantId}` : '/tv';
               window.open(tvUrl, '_blank', 'noopener,noreferrer');
             }}

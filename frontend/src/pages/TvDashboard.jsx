@@ -6,6 +6,7 @@ import Table3DModel from '../components/Table3DModel';
 import { getCategoryConfig } from '../utils/categoryAssets';
 import Logo from '../components/Logo';
 import { useTranslation } from '../utils/translations';
+import { secureSessionStorage } from '../utils/storage';
 
 function BackgroundOrbs() {
   return (
@@ -51,7 +52,7 @@ export default function TvDashboard() {
 
   const loadData = useCallback(async () => {
     try {
-      const tenantId = sessionStorage.getItem('tenant_id');
+      const tenantId = secureSessionStorage.getItem('tenant_id');
       const urlParams = new URLSearchParams(window.location.search);
       const clubQuery = urlParams.get('club') || tenantId;
 
