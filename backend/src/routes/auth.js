@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import AdminUser from '../models/AdminUser.js';
+import BlacklistedToken from '../models/BlacklistedToken.js';
 import { verifyPassword, createAccessToken } from '../utils/security.js';
 import { requireAuth } from '../middleware/auth.js';
 
@@ -81,6 +82,27 @@ router.get('/me', requireAuth, async (req, res) => {
     });
   } catch (err) {
     console.error('GET /auth/me', err);
+    return res.status(500).json({ detail: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /auth/logout
+ * Invalidate the current session token.
+ */
+router.post('/logout', requireAuth, async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.slice(7);
+      await BlacklistedToken.create({ token });
+    }
+    return res.json({ detail: 'Logged out successfully' });
+  } catch (err) {
+    if (err.code === 11000) {
+      return res.json({ detail: 'Logged out successfully' });
+    }
+    console.error('POST /auth/logout error:', err);
     return res.status(500).json({ detail: 'Internal server error' });
   }
 });

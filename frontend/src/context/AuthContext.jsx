@@ -62,11 +62,15 @@ export function AuthProvider({ children }) {
   };
 
   const logout = () => {
-    localStorage.removeItem('billiards_token');
-    localStorage.removeItem('billiards_admin');
-    sessionStorage.removeItem('tenant_id');
-    setAdmin(null);
-    window.location.href = '/login';
+    authApi.logout()
+      .catch((err) => console.error('Server logout failed:', err))
+      .finally(() => {
+        localStorage.removeItem('billiards_token');
+        localStorage.removeItem('billiards_admin');
+        sessionStorage.removeItem('tenant_id');
+        setAdmin(null);
+        window.location.href = '/login';
+      });
   };
 
   return (

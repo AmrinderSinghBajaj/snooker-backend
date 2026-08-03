@@ -1,5 +1,6 @@
 import { decodeAccessToken } from '../utils/security.js';
 import AdminUser from '../models/AdminUser.js';
+import BlacklistedToken from '../models/BlacklistedToken.js';
 
 export async function requireAuth(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -7,6 +8,13 @@ export async function requireAuth(req, res, next) {
     return res.status(401).json({ detail: 'Not authenticated' });
   }
   const token = authHeader.slice(7);
+
+  // Check if token has been blacklisted (logged out)
+  const isBlacklisted = await BlacklistedToken.findOne({ token });
+  if (isBlacklisted) {
+    return res.status(401).json({ detail: 'Token has been invalidated (logged out)' });
+  }
+
   const payload = decodeAccessToken(token);
   if (!payload || !payload.sub) {
     return res.status(401).json({ detail: 'Could not validate credentials' });

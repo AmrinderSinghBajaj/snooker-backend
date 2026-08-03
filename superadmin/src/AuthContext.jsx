@@ -47,9 +47,13 @@ export function AuthProvider({ children }) {
   };
 
   const logout = () => {
-    localStorage.removeItem('superadmin_token');
-    localStorage.removeItem('superadmin_user');
-    setAdmin(null);
+    api.post('/auth/logout')
+      .catch((err) => console.error('Superadmin server logout failed:', err))
+      .finally(() => {
+        localStorage.removeItem('superadmin_token');
+        localStorage.removeItem('superadmin_user');
+        setAdmin(null);
+      });
   };
 
   return (
