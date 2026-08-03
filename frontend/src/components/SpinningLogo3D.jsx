@@ -8,15 +8,10 @@ export default function SpinningLogo3D({ size = 180 }) {
   const containerRef = useRef(null);
   const { logo_url, has_logo, club_name } = useBranding();
 
-  // Keep references to the materials so we can update their textures dynamically
-  const faceMatFrontRef = useRef(null);
-  const faceMatBackRef = useRef(null);
-
-  // 1. WebGL Initialization (only runs on mount or if size changes)
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
+    if (!containerRef.current) return;
 
+    // ── Scene / Camera / Renderer ────────────────────────────────────────────
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
     camera.position.z = 6.5;
@@ -28,8 +23,9 @@ export default function SpinningLogo3D({ size = 180 }) {
     });
     renderer.setSize(size, size);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    container.appendChild(renderer.domElement);
+    containerRef.current.appendChild(renderer.domElement);
 
+    // ── Lights ───────────────────────────────────────────────────────────────
     scene.add(new THREE.AmbientLight(0xffffff, 0.9));
 
     const key = new THREE.DirectionalLight(0xffffff, 1.8);
@@ -40,13 +36,16 @@ export default function SpinningLogo3D({ size = 180 }) {
     fill.position.set(-5, -2, 3);
     scene.add(fill);
 
-    const coinGroup = new THREE.Group();
-    scene.add(coinGroup);
-
+    // ── Coin geometry ────────────────────────────────────────────────────────
     const RADIUS = 2;
     const DEPTH  = 0.18;
 
-    const coinGeo = new THREE.CylinderGeometry(RADIUS, RADIUS, DEPTH, 64, 1);
+    const coinGroup = new THREE.Group();
+    scene.add(coinGroup);
+
+    // Single solid CylinderGeometry — no separate rim/face seam to cause artifacts
+    // Material order: [side=rim, top=front-face, bottom=back-face]
+    const coinGeo = new THREE.CylinderGeometry(RADIUS, RADIUS, DEPTH, 128, 1);
     const rimMat = new THREE.MeshStandardMaterial({
       color: 0xd4af37, metalness: 0.95, roughness: 0.10,
     });
@@ -56,94 +55,74 @@ export default function SpinningLogo3D({ size = 180 }) {
     const faceMatBack = new THREE.MeshStandardMaterial({
       color: 0xffffff, metalness: 0.1, roughness: 0.35,
     });
-
-    faceMatFrontRef.current = faceMatFront;
-    faceMatBackRef.current = faceMatBack;
-
     const coinMesh = new THREE.Mesh(coinGeo, [rimMat, faceMatFront, faceMatBack]);
+    // Lay coin flat so caps face forward/backward (+Z / -Z)
     coinMesh.rotation.x = Math.PI / 2;
     coinGroup.add(coinMesh);
 
-    let raf;
-    const animate = () => {
-      raf = requestAnimationFrame(animate);
-      coinGroup.rotation.y += 0.013;
-      coinGroup.position.y  = Math.sin(Date.now() * 0.0014) * 0.1;
-      renderer.render(scene, camera);
-    };
-    animate();
+    // ── Texture helpers ──────────────────────────────────────────────────────
+    let texFront = null;
+    let texBack  = null;
 
-    return () => {
-      cancelAnimationFrame(raf);
-      if (renderer.domElement.parentNode === container) {
-        container.removeChild(renderer.domElement);
-      }
-      coinGeo.dispose();
-      rimMat.dispose();
-      faceMatFront.dispose();
-      faceMatBack.dispose();
-      renderer.dispose();
-      faceMatFrontRef.current = null;
-      faceMatBackRef.current = null;
-    };
-  }, [size]);
-
-  // 2. Texture Loading (runs when branding loads or changes)
-  useEffect(() => {
     const applyTextures = (srcCanvas) => {
       const s = srcCanvas.width;
+
+      // CylinderGeometry cap UV: vertex at angle θ → UV (cos(θ)*0.5+0.5, sin(θ)*0.5+0.5)
+      // This is the same mapping as CircleGeometry.
+      // With CanvasTexture flipY=true (default): canvas-top(Y=0) → UV V=1 → cap top.
+      // Texture needs 90° rotation to appear upright on the cap.
       const makeCapTexture = (canvasSrc, isBack) => {
         const tmp = document.createElement('canvas');
         tmp.width = tmp.height = s;
-        const ctx = tmp.getContext('2d');
-        ctx.translate(s / 2, s / 2);
+        const c = tmp.getContext('2d');
+        c.translate(s / 2, s / 2);
         if (isBack) {
-          ctx.scale(-1, 1);
-          ctx.rotate(Math.PI / 2);
+          c.scale(-1, 1);
+          c.rotate(Math.PI / 2); // 90° corrects CylinderGeometry bottom cap UV to stay upright
         } else {
-          ctx.rotate(-Math.PI / 2);
+          c.rotate(-Math.PI / 2); // -90° corrects CylinderGeometry top cap UV
         }
-        ctx.drawImage(canvasSrc, -s / 2, -s / 2, s, s);
+        c.drawImage(canvasSrc, -s / 2, -s / 2, s, s);
         const tex = new THREE.CanvasTexture(tmp);
         tex.colorSpace = THREE.SRGBColorSpace;
         return tex;
       };
 
-      const matFront = faceMatFrontRef.current;
-      const matBack = faceMatBackRef.current;
+      texFront = makeCapTexture(srcCanvas, false);
+      faceMatFront.map = texFront;
+      faceMatFront.needsUpdate = true;
 
-      if (matFront) {
-        if (matFront.map) matFront.map.dispose();
-        matFront.map = makeCapTexture(srcCanvas, false);
-        matFront.needsUpdate = true;
-      }
-      if (matBack) {
-        if (matBack.map) matBack.map.dispose();
-        matBack.map = makeCapTexture(srcCanvas, true);
-        matBack.needsUpdate = true;
-      }
+      texBack = makeCapTexture(srcCanvas, true);
+      faceMatBack.map = texBack;
+      faceMatBack.needsUpdate = true;
     };
 
+    /**
+     * Build a canvas containing the logo image zoomed/fitted so the clean
+     * circular badge content fills the face perfectly.
+     */
     const buildLogoCanvas = (img) => {
       const w = img.width;
       const h = img.height;
       const aspect = w / h;
 
-      const s = 256;
+      const s = 512;
       const canvas = document.createElement('canvas');
       canvas.width  = s;
       canvas.height = s;
       const ctx = canvas.getContext('2d');
 
+      // Clip to a perfect circle — this is the coin face boundary
       ctx.beginPath();
       ctx.arc(s / 2, s / 2, s / 2, 0, Math.PI * 2);
       ctx.clip();
 
+      // Felt gradient background matching current theme
       const style = getComputedStyle(document.documentElement);
       const felt700 = style.getPropertyValue('--felt-700').trim() || '#1b5c4c';
       const felt900 = style.getPropertyValue('--felt-900').trim() || '#0b2b22';
 
-      const grad = ctx.createRadialGradient(s / 2, s / 2, 20, s / 2, s / 2, s / 2);
+      const grad = ctx.createRadialGradient(s / 2, s / 2, 40, s / 2, s / 2, s / 2);
       grad.addColorStop(0, felt700);
       grad.addColorStop(1, felt900);
       ctx.fillStyle = grad;
@@ -151,6 +130,9 @@ export default function SpinningLogo3D({ size = 180 }) {
       ctx.arc(s / 2, s / 2, s / 2, 0, Math.PI * 2);
       ctx.fill();
 
+      // Fit the image to cover the circular canvas face.
+      // Since the circular badge's diameter corresponds to the smaller dimension of the image,
+      // we scale the smaller dimension to match the canvas size 's'.
       let targetWidth, targetHeight;
       if (aspect > 1) {
         targetHeight = s;
@@ -160,6 +142,7 @@ export default function SpinningLogo3D({ size = 180 }) {
         targetHeight = s / aspect;
       }
 
+      // Draw centered
       ctx.drawImage(
         img,
         (s - targetWidth) / 2,
@@ -172,41 +155,42 @@ export default function SpinningLogo3D({ size = 180 }) {
     };
 
     const buildFallbackCanvas = () => {
-      const s = 256;
+      const s = 512;
       const canvas = document.createElement('canvas');
       canvas.width  = s;
       canvas.height = s;
       const ctx = canvas.getContext('2d');
 
-      const style = getComputedStyle(document.documentElement);
-      const felt700 = style.getPropertyValue('--felt-700').trim() || '#1b5c4c';
-      const felt900 = style.getPropertyValue('--felt-900').trim() || '#0b2b22';
-
-      const grad = ctx.createRadialGradient(s/2, s/2, 20, s/2, s/2, s/2);
-      grad.addColorStop(0, felt700);
-      grad.addColorStop(1, felt900);
+      // Felt green background
+      const grad = ctx.createRadialGradient(s/2, s/2, 40, s/2, s/2, s/2);
+      grad.addColorStop(0, '#1b5c4c');
+      grad.addColorStop(1, '#0b2b22');
       ctx.fillStyle = grad;
       ctx.beginPath();
       ctx.arc(s/2, s/2, s/2, 0, Math.PI * 2);
       ctx.fill();
 
+      // Brass ring
       ctx.strokeStyle = '#c9a24b';
-      ctx.lineWidth = 8;
+      ctx.lineWidth = 16;
       ctx.beginPath();
-      ctx.arc(s/2, s/2, s/2 - 10, 0, Math.PI * 2);
+      ctx.arc(s/2, s/2, s/2 - 20, 0, Math.PI * 2);
       ctx.stroke();
 
+      // Initial letter
       const initial = club_name?.charAt(0) || 'B';
       ctx.fillStyle = '#e3c878';
       ctx.font = `bold ${s * 0.48}px serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(initial, s/2, s/2 + 2);
+      ctx.fillText(initial, s/2, s/2);
 
       return canvas;
     };
 
+    // ── Load logo ────────────────────────────────────────────────────────────
     const logoUrl = has_logo && logo_url ? `${API_BASE_URL}${logo_url}` : null;
+
     if (logoUrl) {
       const img = new Image();
       img.crossOrigin = 'anonymous';
@@ -216,7 +200,30 @@ export default function SpinningLogo3D({ size = 180 }) {
     } else {
       applyTextures(buildFallbackCanvas());
     }
-  }, [logo_url, has_logo, club_name]);
+
+    // ── Animation ────────────────────────────────────────────────────────────
+    let raf;
+    const animate = () => {
+      raf = requestAnimationFrame(animate);
+      coinGroup.rotation.y += 0.013;
+      coinGroup.position.y  = Math.sin(Date.now() * 0.0014) * 0.1;
+      renderer.render(scene, camera);
+    };
+    animate();
+
+    // ── Cleanup ──────────────────────────────────────────────────────────────
+    return () => {
+      cancelAnimationFrame(raf);
+      if (renderer.domElement.parentNode === containerRef.current) {
+        containerRef.current.removeChild(renderer.domElement);
+      }
+      coinGeo.dispose(); rimMat.dispose();
+      faceMatFront.dispose(); faceMatBack.dispose();
+      if (texFront) texFront.dispose();
+      if (texBack)  texBack.dispose();
+      renderer.dispose();
+    };
+  }, [logo_url, has_logo, club_name, size]);
 
   return (
     <div
@@ -225,9 +232,9 @@ export default function SpinningLogo3D({ size = 180 }) {
         width: size,
         height: size,
         flexShrink: 0,
-        borderRadius: '50%',
-        overflow: 'hidden',
-        filter: 'drop-shadow(0 4px 8px rgba(11, 43, 34, 0.4))',
+        borderRadius: '50%',     // CSS-clips canvas to a perfect circle
+        overflow: 'hidden',       // hides any edge artifacts outside the circle
+        filter: 'drop-shadow(0 12px 24px rgba(11, 43, 34, 0.55))',
       }}
     />
   );
