@@ -134,7 +134,7 @@ export default function TvDashboard() {
               >
                 {/* 3D Model Viewport Area */}
                 <div className="category-image-wrap" style={styles.imageWrap}>
-                  
+
                   {/* Procedural 3D model */}
                   <Table3DModel
                     category={asset.category}
@@ -166,8 +166,8 @@ export default function TvDashboard() {
                     background: isActive
                       ? 'rgba(47,158,99,0.85)'
                       : isPaused
-                      ? 'rgba(201,162,75,0.85)'
-                      : 'rgba(11, 43, 34, 0.65)',
+                        ? 'rgba(201,162,75,0.85)'
+                        : 'rgba(11, 43, 34, 0.65)',
                     color: isPaused ? 'var(--ink-900)' : '#fff',
                     border: '1px solid rgba(255,255,255,0.1)',
                   }}>

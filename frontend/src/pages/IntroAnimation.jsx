@@ -46,7 +46,7 @@ export default function IntroAnimation() {
     if (loading) return;
     const introDone = sessionStorage.getItem('intro_done');
     if (introDone) return;
-    
+
     if (!containerRef.current) return;
 
     const width = window.innerWidth;
@@ -206,13 +206,13 @@ export default function IntroAnimation() {
       roughness: 0.8,
     });
     const cueStick = new THREE.Group();
-    
+
     // Assemble cue stick parts
     const shaft = new THREE.Mesh(cueStickGeo, cueStickWoodMat);
     shaft.position.y = 3.75;
     shaft.castShadow = true;
     cueStick.add(shaft);
-    
+
     const handleGeo = new THREE.CylinderGeometry(0.082, 0.082, 2, 16);
     const handle = new THREE.Mesh(handleGeo, cueStickHandleMat);
     handle.position.y = 1;
@@ -314,7 +314,7 @@ export default function IntroAnimation() {
 
     const animate = () => {
       animationFrameId = requestAnimationFrame(animate);
-      
+
       const dt = Math.min(clock.getDelta(), 0.03); // Cap dt to avoid large steps
       timer += dt;
 
@@ -326,14 +326,14 @@ export default function IntroAnimation() {
       if (state === 'camera_pan') {
         // Smoothly interpolate camera from high angle to behind the cue ball
         const progress = Math.min(timer / 1.6, 1);
-        
+
         // Circular path camera rotation
         const angle = Math.PI * 0.75 - progress * Math.PI * 0.75; // Rotate 135 degrees to 0 degrees
         const radius = 17 - progress * 4;
         camera.position.x = cueBall.x - radius * Math.cos(angle);
         camera.position.z = radius * Math.sin(angle);
         camera.position.y = 14 - progress * 10;
-        
+
         // Target looks slightly ahead of cue ball towards red rack
         camera.lookAt(new THREE.Vector3(1, 0.2, 0));
 
@@ -347,7 +347,7 @@ export default function IntroAnimation() {
         cueStick.visible = true;
         // Aiming: Line up stick behind cue ball, pull back
         const progress = Math.min(timer / 1.0, 1);
-        
+
         // Pull back stick
         const pullBackDist = progress * 1.5;
         cueStick.position.set(cueBall.x - 4.25 - pullBackDist, ballRadius, 0);
@@ -362,7 +362,7 @@ export default function IntroAnimation() {
         // Strike forward rapidly!
         const strikeTime = 0.12;
         const progress = Math.min(timer / strikeTime, 1);
-        
+
         const startX = cueBall.x - 5.75;
         const strikeDist = progress * 2.0;
         cueStick.position.set(startX + strikeDist, ballRadius, 0);
@@ -371,7 +371,7 @@ export default function IntroAnimation() {
           // HIT! Strike the cue ball
           cueBall.vx = 22.0; // High speed hit in positive x direction
           cueBall.vz = (Math.random() - 0.5) * 0.4; // slight off-center angle for dispersion
-          
+
           cueStick.visible = false;
           state = 'simulation';
           timer = 0;
@@ -503,14 +503,14 @@ export default function IntroAnimation() {
               ball.sunk = true;
               ball.vx = 0;
               ball.vz = 0;
-              
+
               // Animate drop down and shrink
               const animateSink = () => {
                 ball.y -= 0.15;
                 const scale = Math.max(ball.mesh.scale.x - 0.12, 0);
                 ball.mesh.scale.set(scale, scale, scale);
                 ball.mesh.position.set(ball.x, ball.y, ball.z);
-                
+
                 if (scale > 0) {
                   requestAnimationFrame(animateSink);
                 } else {
@@ -565,11 +565,11 @@ export default function IntroAnimation() {
     return () => {
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener('resize', handleResize);
-      
+
       if (renderer && renderer.domElement && containerRef.current) {
         containerRef.current.removeChild(renderer.domElement);
       }
-      
+
       // Dispose resources
       feltGeo.dispose();
       feltMat.dispose();

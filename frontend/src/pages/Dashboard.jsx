@@ -197,7 +197,7 @@ export default function Dashboard() {
               >
                 {/* 3D Model Viewport Area */}
                 <div className="category-image-wrap" style={styles.imageWrap}>
-                  
+
                   {/* Procedural 3D model */}
                   <Table3DModel
                     category={asset.category}
@@ -230,8 +230,8 @@ export default function Dashboard() {
                     background: isActive
                       ? 'rgba(47,158,99,0.85)'
                       : isPaused
-                      ? 'rgba(201,162,75,0.85)'
-                      : 'rgba(11, 43, 34, 0.65)',
+                        ? 'rgba(201,162,75,0.85)'
+                        : 'rgba(11, 43, 34, 0.65)',
                     color: isPaused ? 'var(--ink-900)' : '#fff',
                     border: '1px solid rgba(255,255,255,0.1)',
                   }}>
@@ -546,52 +546,52 @@ const styles = {
     fontSize: '1rem',
     cursor: 'pointer',
   },
-    errorBanner: {
-      background: 'rgba(139, 38, 53, 0.2)',
-      border: '1px solid var(--rail-600)',
-      color: 'var(--rail-300)',
-      borderRadius: 'var(--radius-sm)',
-      padding: '10px 14px',
-      fontSize: '0.85rem',
-      marginBottom: 16,
-    },
-    playerNamesContainer: {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      minHeight: 20,
-    },
-    editPlayersBtn: {
-      background: 'transparent',
-      border: 'none',
-      color: 'var(--chalk-400)',
-      cursor: 'pointer',
-      padding: '2px 6px',
-      borderRadius: 4,
-      display: 'flex',
-      alignItems: 'center',
-      transition: 'all 0.15s ease',
-    },
-    tvBtn: {
-      background: 'rgba(255,255,255,0.06)',
-      color: 'var(--brass-300)',
-      border: '1px solid rgba(255,255,255,0.1)',
-      borderRadius: 'var(--radius-sm)',
-      padding: '10px 18px',
-      fontWeight: 600,
-      fontSize: '0.88rem',
-      cursor: 'pointer',
-      display: 'flex',
-      alignItems: 'center',
-      gap: 8,
-      transition: 'all 0.15s ease',
-    },
-  };
+  errorBanner: {
+    background: 'rgba(139, 38, 53, 0.2)',
+    border: '1px solid var(--rail-600)',
+    color: 'var(--rail-300)',
+    borderRadius: 'var(--radius-sm)',
+    padding: '10px 14px',
+    fontSize: '0.85rem',
+    marginBottom: 16,
+  },
+  playerNamesContainer: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 20,
+  },
+  editPlayersBtn: {
+    background: 'transparent',
+    border: 'none',
+    color: 'var(--chalk-400)',
+    cursor: 'pointer',
+    padding: '2px 6px',
+    borderRadius: 4,
+    display: 'flex',
+    alignItems: 'center',
+    transition: 'all 0.15s ease',
+  },
+  tvBtn: {
+    background: 'rgba(255,255,255,0.06)',
+    color: 'var(--brass-300)',
+    border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: 'var(--radius-sm)',
+    padding: '10px 18px',
+    fontWeight: 600,
+    fontSize: '0.88rem',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    transition: 'all 0.15s ease',
+  },
+};
 
-  function EditIconMini() {
-    return (
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ opacity: 0.7 }}>
-        <path d="M16.5 3.5 20 7l-12 12H4v-4l12.5-11.5Z" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round" />
-      </svg>
-    );
-  }
+function EditIconMini() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ opacity: 0.7 }}>
+      <path d="M16.5 3.5 20 7l-12 12H4v-4l12.5-11.5Z" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round" />
+    </svg>
+  );
+}

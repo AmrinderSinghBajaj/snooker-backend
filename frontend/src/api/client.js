@@ -26,7 +26,7 @@ api.interceptors.response.use(
     if (error.response && error.response.status === 401) {
       localStorage.removeItem('billiards_token');
       localStorage.removeItem('billiards_admin');
-      
+
       if (window.location.pathname !== '/login') {
         window.location.href = '/login';
       }

@@ -203,7 +203,7 @@ export default function FoodAndDrink() {
   const handleDeleteItem = async (id, itemName) => {
     const confirmed = window.confirm(`${t('removeFoodItemConfirmed').replace('food item', `"${itemName}"`)}`);
     if (!confirmed) return;
-    
+
     setDeletingId(id);
     try {
       await foodApi.archive(id);
@@ -362,7 +362,7 @@ export default function FoodAndDrink() {
                     fontWeight: 500,
                     textAlign: 'center'
                   }}>
-                    {item.inventory <= 0 
+                    {item.inventory <= 0
                       ? (lang === 'hi' ? 'आउट ऑफ स्टॉक' : lang === 'pb' ? 'ਸਟਾਕ ਖਤਮ' : 'Out of Stock')
                       : item.inventory <= 10
                         ? (lang === 'hi' ? `केवल ${item.inventory} शेष` : lang === 'pb' ? `ਸਿਰਫ ${item.inventory} ਬਾਕੀ` : `Only ${item.inventory} left`)
@@ -540,7 +540,7 @@ export default function FoodAndDrink() {
         <Modal title={t('assignOrder')} onClose={() => setShowAssignModal(false)}>
           <div>
             <label style={styles.label}>{t('selectPlayerWalkin')}</label>
-            
+
             <div style={{ position: 'relative' }}>
               <button
                 type="button"

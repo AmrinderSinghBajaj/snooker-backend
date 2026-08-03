@@ -53,11 +53,11 @@ export default function Login() {
 
   const renderAlert = (msg) => {
     if (!msg) return null;
-    
+
     // Check if it is a block/disabled message with support details
     const supportRegex = /(.+?)\s*\(Owner:\s*(.+?),\s*Email:\s*(.+?),\s*Phone:\s*(.+?)\)/;
     const match = msg.match(supportRegex);
-    
+
     if (match) {
       const [_, title, owner, email, phone] = match;
       return (

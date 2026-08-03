@@ -3,6 +3,7 @@ import { AuthProvider } from './context/AuthContext';
 import { BrandingProvider } from './context/BrandingContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import AppShell from './components/AppShell';
+import { secureSessionStorage } from './utils/storage';
 import Login from './pages/Login';
 import IntroAnimation from './pages/IntroAnimation';
 import Dashboard from './pages/Dashboard';
@@ -18,7 +19,7 @@ import EmployeeManagement from './pages/EmployeeManagement';
 import PendingPayments from './pages/PendingPayments';
 
 function SplashGuard({ children }) {
-  const introDone = sessionStorage.getItem('intro_done');
+  const introDone = secureSessionStorage.getItem('intro_done');
   if (!introDone && window.location.pathname !== '/') {
     return <Navigate to="/" replace />;
   }

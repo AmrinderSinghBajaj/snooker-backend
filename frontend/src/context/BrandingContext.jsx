@@ -56,12 +56,12 @@ export function BrandingProvider({ children }) {
       const merged = { ...prev, ...newData };
       const primary = merged.theme_primary || merged.themePrimary;
       const secondary = merged.theme_secondary || merged.themeSecondary;
-      
+
       if (merged.themePrimary) merged.theme_primary = merged.themePrimary;
       if (merged.themeSecondary) merged.theme_secondary = merged.themeSecondary;
 
       applyThemeColors(primary, secondary);
-      
+
       // Dynamically sync document title with current tenant
       document.title = merged.name || merged.club_name || merged.clubName || 'Bajaj Snooker Arena';
 
@@ -111,7 +111,7 @@ export function BrandingProvider({ children }) {
 
         // 5. Dynamically apply custom white-labeled themes using CSS variables
         applyThemeColors(data.theme_primary, data.theme_secondary);
-        
+
         // Dynamically sync document title with current tenant
         document.title = data.name || data.club_name || data.clubName || 'Bajaj Snooker Arena';
       })

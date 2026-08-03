@@ -1,27 +1,28 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import api from './api';
+import { secureStorage } from './utils/storage';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [admin, setAdmin] = useState(() => {
-    const stored = localStorage.getItem('superadmin_user');
+    const stored = secureStorage.getItem('superadmin_user');
     return stored ? JSON.parse(stored) : null;
   });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('superadmin_token');
+    const token = secureStorage.getItem('superadmin_token');
     if (token) {
       if (!admin) {
         api.get('/auth/me')
           .then((res) => {
             setAdmin(res.data);
-            localStorage.setItem('superadmin_user', JSON.stringify(res.data));
+            secureStorage.setItem('superadmin_user', JSON.stringify(res.data));
           })
           .catch(() => {
-            localStorage.removeItem('superadmin_token');
-            localStorage.removeItem('superadmin_user');
+            secureStorage.removeItem('superadmin_token');
+            secureStorage.removeItem('superadmin_user');
           })
           .finally(() => setLoading(false));
       } else {
@@ -40,8 +41,8 @@ export function AuthProvider({ children }) {
       throw new Error('Access denied: You are not authorized to view the Super Admin panel.');
     }
 
-    localStorage.setItem('superadmin_token', access_token);
-    localStorage.setItem('superadmin_user', JSON.stringify(adminInfo));
+    secureStorage.setItem('superadmin_token', access_token);
+    secureStorage.setItem('superadmin_user', JSON.stringify(adminInfo));
     setAdmin(adminInfo);
     return adminInfo;
   };
@@ -50,8 +51,8 @@ export function AuthProvider({ children }) {
     api.post('/auth/logout')
       .catch((err) => console.error('Superadmin server logout failed:', err))
       .finally(() => {
-        localStorage.removeItem('superadmin_token');
-        localStorage.removeItem('superadmin_user');
+        secureStorage.removeItem('superadmin_token');
+        secureStorage.removeItem('superadmin_user');
         setAdmin(null);
       });
   };
