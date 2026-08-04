@@ -220,6 +220,7 @@ export default function Customers() {
                     <div style={cardStyles.topRow}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={cardStyles.name}>{c.display_name}</div>
+                        {c.phone && <div style={{ fontSize: '0.78rem', color: 'var(--brass-300)', marginTop: 2, fontFamily: 'var(--font-mono)' }}>📞 {c.phone}</div>}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <RankBadge rank={rank} />
@@ -268,6 +269,7 @@ export default function Customers() {
                   <tr>
                     <th style={tableStyles.th}>#</th>
                     <th style={tableStyles.th}>{t('player')}</th>
+                    <th style={tableStyles.th}>{lang === 'hi' ? 'फ़ोन नंबर' : lang === 'pb' ? 'ਫ਼ੋਨ ਨੰਬਰ' : 'Phone Number'}</th>
                     <th style={tableStyles.th}>{t('lifetimeSpend')}</th>
                     <th style={tableStyles.th}>{lang === 'hi' ? 'सत्र' : lang === 'pb' ? 'ਸੈਸ਼ਨ' : 'Sessions'}</th>
                     <th style={tableStyles.th}>{t('lastVisit')}</th>
@@ -283,6 +285,11 @@ export default function Customers() {
                         <td style={tableStyles.td}><RankBadge rank={rank} /></td>
                         <td style={tableStyles.td}>
                           <div style={{ fontWeight: 600, color: 'var(--chalk-100)' }}>{c.display_name}</div>
+                        </td>
+                        <td style={tableStyles.td}>
+                          <div style={{ fontFamily: 'var(--font-mono)', color: c.phone ? 'var(--chalk-300)' : 'var(--chalk-500)', fontSize: '0.85rem' }}>
+                            {c.phone || '—'}
+                          </div>
                         </td>
                         <td style={tableStyles.td}>
                           <div style={{ fontFamily: 'var(--font-mono)', color: 'var(--brass-300)', fontWeight: 700 }}>{fmt(c.total_spent)}</div>

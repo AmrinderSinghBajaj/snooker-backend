@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { billingApi } from '../api/endpoints';
+import { billingApi, customersApi } from '../api/endpoints';
 import { useTranslation } from '../utils/translations';
 import Modal from '../components/Modal';
 import Card from '../components/Card';
@@ -11,6 +11,7 @@ export default function PendingPayments() {
   const [search, setSearch] = useState('');
   const [busyId, setBusyId] = useState(null);
   const [toast, setToast] = useState('');
+  const [customers, setCustomers] = useState([]);
 
   // Modals / Selected Details
   const [selectedPlayer, setSelectedPlayer] = useState(null);
@@ -37,6 +38,12 @@ export default function PendingPayments() {
 
   useEffect(() => {
     loadRecords();
+  }, []);
+
+  useEffect(() => {
+    customersApi.list()
+      .then((res) => setCustomers(res.data || []))
+      .catch((err) => console.error('Failed to load customers', err));
   }, []);
 
   useEffect(() => {
@@ -88,6 +95,8 @@ export default function PendingPayments() {
     };
   }, [outstandingPlayers]);
 
+
+
   const handleOpenDetailModal = (player) => {
     setSelectedPlayer(player);
     setSettleAmount(String(player.total_outstanding));
@@ -135,6 +144,60 @@ export default function PendingPayments() {
       setModalError(err.response?.data?.detail || 'Failed to record outstanding payment.');
     } finally {
       setBusyId(null);
+    }
+  };
+
+  const handleSendOutstandingWhatsApp = async (playerName, allRecords, totalOutstanding) => {
+    const matchedCustomer = customers.find(c =>
+      (c.display_name || '').toLowerCase().trim() === (playerName || '').toLowerCase().trim()
+    );
+    
+    let phone = '';
+    if (matchedCustomer && matchedCustomer.phone) {
+      phone = matchedCustomer.phone;
+    }
+    
+    if (phone) {
+      const url = getOutstandingWhatsAppLink(phone, playerName, allRecords, totalOutstanding);
+      
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      if (isMobile) {
+        window.location.href = url;
+      } else {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+    } else {
+      const input = window.prompt(
+        `Send WhatsApp Outstanding Statement to ${playerName}:\nEnter customer mobile number (e.g. 9876543210):`
+      );
+      if (input === null) return;
+      const clean = input.trim().replace(/\D/g, '');
+      if (!clean) {
+        alert('Phone number cannot be empty.');
+        return;
+      }
+      if (clean.length < 7 || clean.length > 15) {
+        alert('Invalid phone number format. It must contain between 7 and 15 digits.');
+        return;
+      }
+      
+      const url = getOutstandingWhatsAppLink(clean, playerName, allRecords, totalOutstanding);
+      
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      if (isMobile) {
+        window.location.href = url;
+      } else {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+      
+      if (matchedCustomer) {
+        try {
+          await customersApi.updatePhone(matchedCustomer.id, clean);
+          setCustomers(prev => prev.map(c => c.id === matchedCustomer.id ? { ...c, phone: clean } : c));
+        } catch (err) {
+          console.error('Could not save customer phone number', err);
+        }
+      }
     }
   };
 
@@ -203,6 +266,14 @@ export default function PendingPayments() {
                     ₹{p.total_outstanding.toFixed(2)}
                   </td>
                   <td style={styles.tdRight}>
+                    <button
+                      style={{ ...styles.iconBtn, color: '#25D366', marginRight: 8 }}
+                      onClick={() => handleSendOutstandingWhatsApp(p.player_name, p.all_records, p.total_outstanding)}
+                      title="Send WhatsApp Reminder"
+                      aria-label="Send WhatsApp Reminder"
+                    >
+                      <WhatsAppIcon />
+                    </button>
                     <button style={styles.iconBtn} onClick={() => handleOpenDetailModal(p)} title="View Detail & Settle" aria-label="View Detail & Settle">
                       <EyeIcon />
                     </button>
@@ -391,11 +462,29 @@ export default function PendingPayments() {
                 >
                   {busyId === selectedPlayer.player_name ? 'Saving...' : `Record Payment of ₹${Number(settleAmount || 0).toFixed(2)}`}
                 </button>
+                <button
+                  style={{
+                    ...styles.submitBtn,
+                    background: '#25D366',
+                    color: '#fff',
+                    marginTop: 10,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8
+                  }}
+                  onClick={() => handleSendOutstandingWhatsApp(selectedPlayer.player_name, selectedPlayer.all_records, selectedPlayer.total_outstanding)}
+                >
+                  <WhatsAppIcon />
+                  Send WhatsApp Reminder
+                </button>
               </div>
             </div>
           </div>
         </Modal>
       )}
+
+
 
       {toast && <div style={styles.toast}>{toast}</div>}
     </div>
@@ -409,6 +498,72 @@ function EyeIcon() {
       <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8" />
     </svg>
   );
+}
+
+function WhatsAppIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="8" cy="8" r="8" fill="#25D366" />
+      <path
+        fill="#FFFFFF"
+        d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.71 1.916.81 2.049c.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232"
+      />
+    </svg>
+  );
+}
+
+function getOutstandingWhatsAppLink(phone, playerName, allRecords, totalOutstanding) {
+  let cleanPhone = (phone || '').replace(/\D/g, '');
+  if (cleanPhone.length === 10) {
+    cleanPhone = '91' + cleanPhone;
+  }
+
+  const clubName = "BAJAJ SNOOKER ARENA";
+  
+  // Group records by local date
+  const recordsByDay = {};
+  allRecords.forEach(rec => {
+    const dateObj = new Date(rec.start_time || rec.createdAt);
+    const dateKey = dateObj.toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+    if (!recordsByDay[dateKey]) {
+      recordsByDay[dateKey] = {
+        records: [],
+        subtotal: 0
+      };
+    }
+    recordsByDay[dateKey].records.push(rec);
+    recordsByDay[dateKey].subtotal += rec.pending_amount || 0;
+  });
+
+  let msg = `=========================\n`;
+  msg += ` 🎱 *${clubName}* 🎱\n`;
+  msg += `=========================\n`;
+  msg += `*Dear ${playerName},*\n`;
+  msg += `This is a friendly reminder of your outstanding payment balance.\n\n`;
+  msg += `💰 *TOTAL PENDING:* ₹${totalOutstanding.toFixed(2)}\n\n`;
+  msg += `📅 *DAILY BREAKDOWN:*\n`;
+  msg += `-------------------------\n`;
+
+  Object.keys(recordsByDay).forEach(date => {
+    const dayData = recordsByDay[date];
+    msg += `*Date: ${date}*\n`;
+    dayData.records.forEach(rec => {
+      const label = rec.asset_label || 'Manual Entry';
+      const foodStr = rec.food_amount > 0 ? ` + Food ₹${rec.food_amount.toFixed(0)}` : '';
+      msg += `  - ${label}: ₹${rec.pending_amount.toFixed(2)}${foodStr}\n`;
+    });
+    msg += `  *Subtotal for ${date}:* ₹${dayData.subtotal.toFixed(2)}\n`;
+    msg += `-------------------------\n`;
+  });
+
+  msg += `Please settle this balance at your earliest convenience.\n`;
+  msg += `Thank you for playing with us! 🎱🔥`;
+
+  return `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msg)}`;
 }
 
 const styles = {
@@ -460,7 +615,12 @@ const styles = {
     fontWeight: 700,
   },
   searchRow: {
-    maxWidth: 400,
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 6,
+    width: '100%',
   },
   searchInput: {
     background: 'var(--felt-800)',
@@ -469,8 +629,31 @@ const styles = {
     color: 'var(--chalk-100)',
     padding: '10px 14px',
     fontSize: '0.9rem',
-    width: '100%',
+    flex: 1,
+    maxWidth: 320,
     outline: 'none',
+  },
+  checkbox: {
+    cursor: 'pointer',
+    width: 16,
+    height: 16,
+    accentColor: 'var(--brass-500)',
+    verticalAlign: 'middle',
+  },
+  bulkSendBtn: {
+    background: '#25D366',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 'var(--radius-sm)',
+    padding: '10px 18px',
+    fontWeight: 700,
+    fontSize: '0.88rem',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+    animation: 'modalScaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
   },
   tableWrap: {
     background: 'var(--felt-800)',

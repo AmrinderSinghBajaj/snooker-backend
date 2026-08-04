@@ -120,9 +120,63 @@ function getWhatsAppLink(phone, record) {
     msg += `🔴 *Status:* PENDING\n`;
     msg += `⚠️ *Balance Due:* ${pendingAmt}\n`;
   }
-  msg += `=========================\n`;
+  
   msg += `Thank you for playing with us!\n`;
   msg += `Hope to see you again soon. 🎱🔥`;
+
+  return `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msg)}`;
+}
+
+function getOutstandingWhatsAppLink(phone, playerName, allRecords, totalOutstanding) {
+  let cleanPhone = (phone || '').replace(/\D/g, '');
+  if (cleanPhone.length === 10) {
+    cleanPhone = '91' + cleanPhone;
+  }
+
+  const clubName = "BAJAJ SNOOKER ARENA";
+  
+  // Group records by local date
+  const recordsByDay = {};
+  allRecords.forEach(rec => {
+    const dateObj = new Date(rec.start_time || rec.createdAt);
+    const dateKey = dateObj.toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+    if (!recordsByDay[dateKey]) {
+      recordsByDay[dateKey] = {
+        records: [],
+        subtotal: 0
+      };
+    }
+    recordsByDay[dateKey].records.push(rec);
+    recordsByDay[dateKey].subtotal += rec.pending_amount || 0;
+  });
+
+  let msg = `=========================\n`;
+  msg += ` 🎱 *${clubName}* 🎱\n`;
+  msg += `=========================\n`;
+  msg += `*Dear ${playerName},*\n`;
+  msg += `This is a friendly reminder of your outstanding payment balance.\n\n`;
+  msg += `💰 *TOTAL PENDING:* ₹${totalOutstanding.toFixed(2)}\n\n`;
+  msg += `📅 *DAILY BREAKDOWN:*\n`;
+  msg += `-------------------------\n`;
+
+  Object.keys(recordsByDay).forEach(date => {
+    const dayData = recordsByDay[date];
+    msg += `*Date: ${date}*\n`;
+    dayData.records.forEach(rec => {
+      const label = rec.asset_label || 'Manual Entry';
+      const foodStr = rec.food_amount > 0 ? ` + Food ₹${rec.food_amount.toFixed(0)}` : '';
+      msg += `  - ${label}: ₹${rec.pending_amount.toFixed(2)}${foodStr}\n`;
+    });
+    msg += `  *Subtotal for ${date}:* ₹${dayData.subtotal.toFixed(2)}\n`;
+    msg += `-------------------------\n`;
+  });
+
+  msg += `Please settle this balance at your earliest convenience.\n`;
+  msg += `Thank you for playing with us! 🎱🔥`;
 
   return `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msg)}`;
 }
@@ -237,43 +291,111 @@ export default function Billing() {
 
   const handleSendWhatsAppLater = async (record) => {
     const pName = record.player_names ? record.player_names[0] : '';
-    let defaultPhone = '';
     
-    // Synchronously find pre-loaded customer phone details to avoid async-context window blocking issues on Safari
+    // Synchronously find pre-loaded customer phone details
     const matchedCustomer = customers.find(c =>
       (c.display_name || '').toLowerCase().trim() === (pName || '').toLowerCase().trim()
     );
+    
+    let phone = '';
     if (matchedCustomer && matchedCustomer.phone) {
-      defaultPhone = matchedCustomer.phone;
+      phone = matchedCustomer.phone;
     }
     
-    const input = window.prompt(
-      `Send WhatsApp Invoice to ${pName}:\nEnter customer mobile number (e.g. 9876543210):`,
-      defaultPhone
+    if (phone) {
+      const url = getWhatsAppLink(phone, record);
+      
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      if (isMobile) {
+        window.location.href = url;
+      } else {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+    } else {
+      const input = window.prompt(
+        `Send WhatsApp Invoice to ${pName}:\nEnter customer mobile number (e.g. 9876543210):`
+      );
+      if (input === null) return;
+      const clean = input.trim().replace(/\D/g, '');
+      if (!clean) {
+        alert('Phone number cannot be empty.');
+        return;
+      }
+      if (clean.length < 7 || clean.length > 15) {
+        alert('Invalid phone number format. It must contain between 7 and 15 digits.');
+        return;
+      }
+      
+      const url = getWhatsAppLink(clean, record);
+      
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      if (isMobile) {
+        window.location.href = url;
+      } else {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+      
+      if (matchedCustomer) {
+        try {
+          await customersApi.updatePhone(matchedCustomer.id, clean);
+          setCustomers(prev => prev.map(c => c.id === matchedCustomer.id ? { ...c, phone: clean } : c));
+        } catch (err) {
+          console.error('Could not save customer phone number', err);
+        }
+      }
+    }
+  };
+
+  const handleSendOutstandingWhatsApp = async (playerName, allRecords, totalOutstanding) => {
+    const matchedCustomer = customers.find(c =>
+      (c.display_name || '').toLowerCase().trim() === (playerName || '').toLowerCase().trim()
     );
     
-    if (input === null) return;
-    const clean = input.trim();
-    if (!clean) {
-      alert('Phone number cannot be empty.');
-      return;
+    let phone = '';
+    if (matchedCustomer && matchedCustomer.phone) {
+      phone = matchedCustomer.phone;
     }
     
-    const url = getWhatsAppLink(clean, record);
-    
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    if (isMobile) {
-      window.location.href = url;
+    if (phone) {
+      const url = getOutstandingWhatsAppLink(phone, playerName, allRecords, totalOutstanding);
+      
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      if (isMobile) {
+        window.location.href = url;
+      } else {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
     } else {
-      window.open(url, '_blank', 'noopener,noreferrer');
-    }
-    
-    if (matchedCustomer && clean !== matchedCustomer.phone) {
-      try {
-        await customersApi.updatePhone(matchedCustomer.id, clean);
-        setCustomers(prev => prev.map(c => c.id === matchedCustomer.id ? { ...c, phone: clean } : c));
-      } catch (err) {
-        console.error('Could not save customer phone number', err);
+      const input = window.prompt(
+        `Send WhatsApp Outstanding Statement to ${playerName}:\nEnter customer mobile number (e.g. 9876543210):`
+      );
+      if (input === null) return;
+      const clean = input.trim().replace(/\D/g, '');
+      if (!clean) {
+        alert('Phone number cannot be empty.');
+        return;
+      }
+      if (clean.length < 7 || clean.length > 15) {
+        alert('Invalid phone number format. It must contain between 7 and 15 digits.');
+        return;
+      }
+      
+      const url = getOutstandingWhatsAppLink(clean, playerName, allRecords, totalOutstanding);
+      
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      if (isMobile) {
+        window.location.href = url;
+      } else {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+      
+      if (matchedCustomer) {
+        try {
+          await customersApi.updatePhone(matchedCustomer.id, clean);
+          setCustomers(prev => prev.map(c => c.id === matchedCustomer.id ? { ...c, phone: clean } : c));
+        } catch (err) {
+          console.error('Could not save customer phone number', err);
+        }
       }
     }
   };
@@ -676,6 +798,20 @@ export default function Billing() {
                       >
                         <EyeIcon />
                       </button>
+                      <button
+                        style={{ ...styles.iconBtn, color: '#25D366' }}
+                        onClick={() => {
+                          handleSendOutstandingWhatsApp(
+                            item.player_name,
+                            item.all_records,
+                            item.total_outstanding
+                          );
+                        }}
+                        title="Send WhatsApp Reminder"
+                        aria-label="Send WhatsApp Reminder"
+                      >
+                        <WhatsAppIcon />
+                      </button>
                       {canEditBilling && (
                         <button
                           style={{...styles.iconBtn, ...{color: 'var(--green-go)'}}}
@@ -904,6 +1040,32 @@ export default function Billing() {
                 }}
               >
                 {t('markAllPaid')}
+              </button>
+              <button
+                style={{
+                  flex: 1,
+                  background: '#25D366',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '11px 0',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6
+                }}
+                onClick={() => {
+                  handleSendOutstandingWhatsApp(
+                    outstandingDetailPlayer.player_name,
+                    outstandingDetailPlayer.all_records,
+                    outstandingDetailPlayer.total_outstanding
+                  );
+                }}
+              >
+                <WhatsAppIcon />
+                {lang === 'hi' ? 'याद दिलाएं' : lang === 'pb' ? 'ਯਾਦ ਦਿਵਾਓ' : 'Send Reminder'}
               </button>
               <button
                 style={{

@@ -212,6 +212,7 @@ router.get('/stats', requireAuth, requirePermission('customers', 'view'), async 
         username:        c.username,
         display_name:    c.displayName,
         wallet_balance:  c.walletBalance ?? 0,
+        phone:           c.phone ?? '',
         created_at:      c.createdAt,
         total_spent:     stats.total_spent,
         sessions_played: stats.sessions_played,
@@ -252,9 +253,13 @@ router.delete('/:id', requireAuth, requirePermission('customers', 'delete'), asy
 router.post('/:id/phone', requireAuth, requirePermission('customers', 'edit'), async (req, res) => {
   try {
     const { phone } = req.body || {};
+    const cleanPhone = phone ? phone.trim().replace(/\D/g, '') : '';
+    if (phone && (cleanPhone.length < 7 || cleanPhone.length > 15)) {
+      return res.status(400).json({ detail: 'Invalid phone number format. It must contain between 7 and 15 digits.' });
+    }
     const customer = await Customer.findOneAndUpdate(
       { _id: req.params.id, clubId: req.admin.clubId },
-      { phone: phone ? phone.trim() : '' },
+      { phone: cleanPhone },
       { new: true }
     );
     if (!customer) return res.status(404).json({ detail: 'Customer not found' });
