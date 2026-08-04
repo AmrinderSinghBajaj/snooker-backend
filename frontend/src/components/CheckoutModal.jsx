@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Modal from './Modal';
-import { billingApi } from '../api/endpoints';
+import { billingApi, customersApi } from '../api/endpoints';
 
 /*
   Combines FRD B.4 (Billing & Payments) and B.7 (Final Checkout Process)
@@ -14,7 +14,8 @@ import { billingApi } from '../api/endpoints';
 export default function CheckoutModal({ session, onClose, onCompleted }) {
   const [step, setStep] = useState('stop'); // stop -> review -> done
   const [stopResult, setStopResult] = useState(null);
-  const [selectedPayers, setSelectedPayers] = useState([]);
+  const [players, setPlayers] = useState([{ name: '', amount: '' }]);
+  const [customers, setCustomers] = useState([]);
   const [detail, setDetail] = useState(null);
   const [showDetail, setShowDetail] = useState(false);
   const [paymentChoice, setPaymentChoice] = useState(null); // 'paid' | 'unpaid'
@@ -24,25 +25,58 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
   const [busy, setBusy] = useState(false);
   const [checkoutPaymentMethod, setCheckoutPaymentMethod] = useState('offline');
 
+  useEffect(() => {
+    customersApi.list()
+      .then((res) => setCustomers(res.data))
+      .catch((err) => console.error('Could not load customers', err));
+  }, []);
+
+  const autoSplitEqually = (currentPlayers, total) => {
+    const M = currentPlayers.length;
+    if (M === 0) return currentPlayers;
+    const share = Math.round((total / M) * 100) / 100;
+    let sum = 0;
+    const updated = currentPlayers.map((p, idx) => {
+      if (idx === M - 1) {
+        const lastAmount = Math.max(0, Math.round((total - sum) * 100) / 100);
+        return { ...p, amount: lastAmount.toString() };
+      }
+      sum += share;
+      return { ...p, amount: share.toString() };
+    });
+    return updated;
+  };
+
+  const addPlayerRow = () => {
+    if (players.length >= 6) return;
+    const newPlayers = [...players, { name: '', amount: '' }];
+    setPlayers(autoSplitEqually(newPlayers, stopResult.total_amount));
+  };
+
+  const removePlayerRow = (idx) => {
+    const newPlayers = players.filter((_, i) => i !== idx);
+    setPlayers(autoSplitEqually(newPlayers, stopResult.total_amount));
+  };
+
+  const updatePlayerField = (idx, field, value) => {
+    const copy = [...players];
+    copy[idx][field] = value;
+    setPlayers(copy);
+  };
+
   const handleStop = async () => {
     setBusy(true);
     setError('');
     try {
       const res = await billingApi.stop(session.session_id);
       setStopResult(res.data);
-      setSelectedPayers(session.player_names.map((_, i) => i)); // default: everyone pays
+      setPlayers([{ name: '', amount: res.data.total_amount.toString() }]);
       setStep('review');
     } catch (err) {
       setError(err.response?.data?.detail || 'Could not stop the game.');
     } finally {
       setBusy(false);
     }
-  };
-
-  const togglePayer = (idx) => {
-    setSelectedPayers((prev) =>
-      prev.includes(idx) ? prev.filter((i) => i !== idx) : [...prev, idx]
-    );
   };
 
   const handleViewDetail = async () => {
@@ -59,8 +93,25 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
     setBusy(true);
     setError('');
     try {
-      const payerNames = selectedPayers.map(idx => session.player_names[idx]);
-      await billingApi.done(session.session_id, payerNames);
+      const cleanedPlayers = players.map(p => ({
+        name: p.name.trim(),
+        amount: Number(p.amount) || 0
+      }));
+      
+      if (cleanedPlayers.some(p => p.name === '')) {
+        setError('Enter names for all players.');
+        setBusy(false);
+        return;
+      }
+
+      const totalAllocated = cleanedPlayers.reduce((acc, p) => acc + p.amount, 0);
+      if (Math.abs(totalAllocated - stopResult.total_amount) > 0.1) {
+        setError(`Sum of splits must equal total bill (₹${stopResult.total_amount.toFixed(2)}).`);
+        setBusy(false);
+        return;
+      }
+
+      await billingApi.done(session.session_id, cleanedPlayers);
       onCompleted();
     } catch (err) {
       setError(err.response?.data?.detail || 'Could not finalize checkout.');
@@ -116,18 +167,15 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
     onClose();
   };
 
-  const splitShare = stopResult && selectedPayers.length > 0
-    ? stopResult.total_amount / selectedPayers.length
-    : 0;
+  const sumOfSplits = players.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+  const splitDiff = stopResult ? Math.abs(sumOfSplits - stopResult.total_amount) : 0;
+  const isSplitValid = stopResult ? (splitDiff < 0.1 && players.every(p => p.name.trim() !== '')) : false;
 
   return (
-    <Modal title={`Checkout — ${session.asset_label}`} onClose={handleClose} width={460}>
+    <Modal title={`Checkout — ${session.asset_label}`} onClose={handleClose} width={480}>
       {step === 'stop' && (
         <div>
-          <p style={styles.text}>
-            Players: <strong>{session.player_names.join(', ')}</strong>
-          </p>
-          <p style={styles.text}>This pauses the clock and calculates the bill.</p>
+          <p style={styles.text}>This stops the clock on the table and calculates the bill.</p>
           {error && <div style={styles.error}>{error}</div>}
           <button style={styles.stopBtn} onClick={handleStop} disabled={busy}>
             {busy ? 'Stopping…' : 'Stop game & calculate bill'}
@@ -154,20 +202,69 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
             <strong>₹{stopResult.total_amount.toFixed(2)}</strong>
           </div>
 
-          <h4 style={styles.subheading}>Split billing — who's paying?</h4>
-          {session.player_names.map((name, idx) => (
-            <label key={idx} style={styles.payerRow}>
-              <input
-                type="checkbox"
-                checked={selectedPayers.includes(idx)}
-                onChange={() => togglePayer(idx)}
-              />
-              {name}
-              {selectedPayers.includes(idx) && (
-                <span style={styles.shareTag}>₹{splitShare.toFixed(2)}</span>
-              )}
-            </label>
-          ))}
+          <h4 style={styles.subheading}>Players &amp; Billing Allocation</h4>
+          
+          <div style={{ maxHeight: '200px', overflowX: 'hidden', overflowY: 'auto', marginBottom: 12, padding: '4px 6px' }}>
+            {players.map((player, idx) => (
+              <div key={idx} style={styles.playerInputRow}>
+                <input
+                  style={styles.playerNameInput}
+                  placeholder={`Player Name ${idx + 1}`}
+                  value={player.name}
+                  onChange={(e) => updatePlayerField(idx, 'name', e.target.value)}
+                  list="checkout-customer-suggestions"
+                  autoFocus={idx === players.length - 1 && idx > 0}
+                />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ color: 'var(--chalk-400)', fontSize: '0.85rem' }}>₹</span>
+                  <input
+                    style={styles.playerAmountInput}
+                    type="number"
+                    placeholder="Amount"
+                    value={player.amount}
+                    onChange={(e) => updatePlayerField(idx, 'amount', e.target.value)}
+                    disabled={players.length === 1}
+                  />
+                </div>
+                {players.length > 1 && (
+                  <button type="button" onClick={() => removePlayerRow(idx)} style={styles.removePlayerBtn}>
+                    ×
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <datalist id="checkout-customer-suggestions">
+            {customers.map((c) => (
+              <option key={c.id} value={c.display_name} />
+            ))}
+          </datalist>
+
+          {players.length < 6 && (
+            <button type="button" onClick={addPlayerRow} style={styles.addPlayerBtn}>
+              + Add Player
+            </button>
+          )}
+
+          <div style={{
+            ...styles.allocationStatus,
+            color: isSplitValid ? '#4FA663' : 'var(--orange-warn)',
+            borderColor: isSplitValid ? 'rgba(79,166,99,0.3)' : 'rgba(201,162,75,0.3)',
+            background: isSplitValid ? 'rgba(79,166,99,0.06)' : 'rgba(201,162,75,0.06)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem', fontWeight: 600 }}>
+              <span>Total Allocated:</span>
+              <span>₹{sumOfSplits.toFixed(2)} / ₹{stopResult.total_amount.toFixed(2)}</span>
+            </div>
+            {!isSplitValid && (
+              <div style={{ fontSize: '0.78rem', marginTop: 4, fontWeight: 500 }}>
+                {players.some(p => p.name.trim() === '') 
+                  ? '⚠️ Enter names for all players.' 
+                  : `⚠️ Sum of splits must equal total bill. Diff: ₹${(stopResult.total_amount - sumOfSplits).toFixed(2)}`}
+              </div>
+            )}
+          </div>
 
           <button type="button" onClick={handleViewDetail} style={styles.detailBtn}>
             See Detail
@@ -202,7 +299,17 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
             >
               ◀ Resume Game
             </button>
-            <button style={{ ...styles.doneBtn, marginTop: 0, flex: 1.2 }} onClick={handleDone} disabled={busy}>
+            <button 
+              style={{ 
+                ...styles.doneBtn, 
+                marginTop: 0, 
+                flex: 1.2,
+                opacity: isSplitValid ? 1 : 0.4,
+                cursor: isSplitValid ? 'pointer' : 'not-allowed'
+              }} 
+              onClick={handleDone} 
+              disabled={busy || !isSplitValid}
+            >
               {busy ? 'Finalizing…' : 'Done — move to Billing'}
             </button>
           </div>
@@ -323,20 +430,66 @@ const styles = {
     fontFamily: 'var(--font-display)',
     fontSize: '1rem',
     color: 'var(--brass-300)',
-    margin: '20px 0 10px',
+    margin: '20px 0 12px',
   },
-  payerRow: {
+  playerInputRow: {
     display: 'flex',
     alignItems: 'center',
-    gap: 10,
-    fontSize: '0.9rem',
-    color: 'var(--chalk-200)',
+    gap: 8,
     marginBottom: 8,
   },
-  shareTag: {
+  playerNameInput: {
+    flex: 1,
+    background: 'var(--felt-800)',
+    border: '1px solid var(--felt-500)',
+    borderRadius: 'var(--radius-sm)',
+    color: 'var(--chalk-100)',
+    padding: '8px 12px',
+    fontSize: '0.88rem',
+    boxSizing: 'border-box',
+  },
+  playerAmountInput: {
+    width: '90px',
+    background: 'var(--felt-800)',
+    border: '1px solid var(--felt-500)',
+    borderRadius: 'var(--radius-sm)',
+    color: 'var(--chalk-100)',
+    padding: '8px 12px',
+    fontSize: '0.88rem',
     fontFamily: 'var(--font-mono)',
+    boxSizing: 'border-box',
+  },
+  removePlayerBtn: {
+    background: 'transparent',
+    border: '1px solid var(--felt-500)',
+    color: 'var(--chalk-400)',
+    borderRadius: 'var(--radius-sm)',
+    width: 34,
+    height: 34,
+    fontSize: '1.2rem',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxSizing: 'border-box',
+  },
+  addPlayerBtn: {
+    background: 'transparent',
+    border: '1.5px dashed var(--felt-500)',
     color: 'var(--brass-300)',
-    marginLeft: 'auto',
+    borderRadius: 'var(--radius-sm)',
+    padding: '8px 12px',
+    fontSize: '0.85rem',
+    width: '100%',
+    marginBottom: 12,
+    cursor: 'pointer',
+    fontWeight: 600,
+  },
+  allocationStatus: {
+    border: '1px solid',
+    borderRadius: 'var(--radius-sm)',
+    padding: '10px 12px',
+    marginBottom: 12,
   },
   detailBtn: {
     background: 'transparent',

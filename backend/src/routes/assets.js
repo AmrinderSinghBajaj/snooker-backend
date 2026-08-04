@@ -185,16 +185,18 @@ router.post('/:id/start', requireAuth, requirePermission('tables', 'edit'), asyn
     }
 
     const { player_names, start_time } = req.body;
-    if (!Array.isArray(player_names) || player_names.length < 1 || player_names.length > 4) {
-      return res.status(422).json({ detail: 'Enter between 1 and 4 player names' });
+    let players = [];
+    if (player_names !== undefined && player_names !== null) {
+      if (!Array.isArray(player_names) || player_names.length > 6) {
+        return res.status(422).json({ detail: 'Enter up to 6 player names' });
+      }
+      players = await Promise.all(
+        player_names.map(async (name) => {
+          const customer = await getOrCreateCustomer(req.admin.clubId, name);
+          return { customerId: customer._id, displayName: customer.displayName };
+        })
+      );
     }
-
-    const players = await Promise.all(
-      player_names.map(async (name) => {
-        const customer = await getOrCreateCustomer(req.admin.clubId, name);
-        return { customerId: customer._id, displayName: customer.displayName };
-      })
-    );
 
     let startTime = new Date();
     if (start_time) {
@@ -289,8 +291,8 @@ router.put('/active-sessions/:sessionId/players', requireAuth, requirePermission
     }
 
     const { player_names } = req.body;
-    if (!Array.isArray(player_names) || player_names.length < 1 || player_names.length > 4) {
-      return res.status(422).json({ detail: 'Enter between 1 and 4 player names' });
+    if (!Array.isArray(player_names) || player_names.length < 1 || player_names.length > 6) {
+      return res.status(422).json({ detail: 'Enter between 1 and 6 player names' });
     }
 
     const players = await Promise.all(

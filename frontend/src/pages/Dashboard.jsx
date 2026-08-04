@@ -97,6 +97,15 @@ export default function Dashboard() {
     loadAll(true);
   };
 
+  const handleStartInstantly = async (asset) => {
+    try {
+      await assetsApi.startGame(asset.id, []);
+      loadAll(true);
+    } catch {
+      setError(t('couldNotStartGame') || 'Could not start game.');
+    }
+  };
+
   const handleCheckoutCompleted = () => {
     setCheckoutSession(null);
     loadAll(true);
@@ -263,7 +272,7 @@ export default function Dashboard() {
                   {session ? (
                     <div style={styles.playerNamesContainer}>
                       <span style={styles.playerNames}>
-                        👤 {session.player_names.join(' · ')}
+                        👤 {session.player_names.length > 0 ? session.player_names.join(' · ') : (lang === 'hi' ? 'चालू...' : lang === 'pb' ? 'ਚੱਲ ਰਿਹਾ ਹੈ...' : 'Running...')}
                       </span>
                       {canEditTables && (
                         <button
@@ -283,17 +292,32 @@ export default function Dashboard() {
 
                   <div style={styles.btnRow}>
                     {!session ? (
-                      <button
-                        id={`start-btn-${asset.id}`}
-                        style={{
-                          ...styles.startBtn,
-                          ...(!canEditTables ? styles.disabledBtn : {})
-                        }}
-                        disabled={!canEditTables}
-                        onClick={() => setStartModalAsset(asset)}
-                      >
-                        ▶ {t('startGame')}
-                      </button>
+                      <div style={{ display: 'flex', width: '100%', gap: 8 }}>
+                        <button
+                          id={`start-btn-${asset.id}`}
+                          style={{
+                            ...styles.startBtn,
+                            flex: 1,
+                            ...(!canEditTables ? styles.disabledBtn : {})
+                          }}
+                          disabled={!canEditTables}
+                          onClick={() => handleStartInstantly(asset)}
+                        >
+                          ▶ {t('startGame')}
+                        </button>
+                        <button
+                          style={{
+                            ...styles.clockBtn,
+                            ...(!canEditTables ? styles.disabledBtn : {})
+                          }}
+                          disabled={!canEditTables}
+                          onClick={() => setStartModalAsset(asset)}
+                          title="Start time in past"
+                          aria-label="Start time in past"
+                        >
+                          🕒
+                        </button>
+                      </div>
                     ) : (
                       <>
                         <button
@@ -333,6 +357,7 @@ export default function Dashboard() {
           asset={startModalAsset}
           onClose={() => setStartModalAsset(null)}
           onStarted={handleStarted}
+          hidePlayers={true}
         />
       )}
 
@@ -503,6 +528,20 @@ const styles = {
     cursor: 'pointer',
     boxShadow: '0 4px 12px rgba(47, 158, 99, 0.25)',
     transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+  },
+  clockBtn: {
+    background: 'rgba(255, 255, 255, 0.08)',
+    border: '1px solid rgba(255, 255, 255, 0.15)',
+    color: 'var(--brass-300)',
+    borderRadius: 'var(--radius-sm)',
+    padding: '11px 16px',
+    fontWeight: 700,
+    fontSize: '1rem',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'all 0.15s ease',
   },
   pauseBtn: {
     flex: 1,

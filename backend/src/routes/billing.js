@@ -173,104 +173,219 @@ router.post('/:sessionId/done', requireAuth, requirePermission('billing', 'edit'
     if (!session) return res.status(404).json({ detail: 'Session not found' });
     if (session.status !== 'stopped') return res.status(400).json({ detail: 'Stop the game before finalizing' });
 
-    const { payer_names } = req.body;
+    const { players, payer_names } = req.body;
 
-    let targetNames = [];
-    if (Array.isArray(payer_names) && payer_names.length > 0) {
-      targetNames = payer_names;
-    } else {
-      targetNames = session.players.map(p => p.displayName);
-    }
+    if (players && Array.isArray(players) && players.length > 0) {
+      if (players.length > 6) {
+        return res.status(422).json({ detail: 'Enter up to 6 player names' });
+      }
 
-    if (targetNames.length > 1) {
-      // Split billing between multiple players
-      const M = targetNames.length;
-      const share = Math.round((session.totalAmount / M) * 100) / 100;
-      const shareTime = Math.round((session.timeAmount / M) * 100) / 100;
-      const shareFood = Math.round((session.foodAmount / M) * 100) / 100;
+      // Verify split sum matches totalAmount with small tolerance
+      const sum = players.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+      if (Math.abs(sum - session.totalAmount) > 0.1) {
+        return res.status(422).json({ detail: `Sum of split amounts (₹${sum.toFixed(2)}) must equal total bill amount (₹${session.totalAmount.toFixed(2)})` });
+      }
 
-      const payerPlayers = session.players.filter(p => targetNames.includes(p.displayName));
+      // Resolve all customers
+      const resolvedPlayers = await Promise.all(
+        players.map(async (p) => {
+          const customer = await getOrCreateCustomer(req.admin.clubId, p.name);
+          return {
+            customerId: customer._id,
+            displayName: customer.displayName,
+            amount: Number(p.amount) || 0
+          };
+        })
+      );
 
-      const firstPayer = payerPlayers[0] || session.players[0];
-      session.players = [{
-        customerId: firstPayer.customerId,
-        displayName: firstPayer.displayName,
-        isPayer: true,
-        shareAmount: share
-      }];
-      session.timeAmount = shareTime;
-      session.foodAmount = shareFood;
-      session.totalAmount = share;
-      session.paymentStatus = 'unpaid';
-      session.paidAmount = 0;
-      session.pendingAmount = share;
-      session.status = 'billed';
-      session.finalizedAt = new Date();
+      const M = resolvedPlayers.length;
+      if (M > 1) {
+        // Multi-payer custom split flow
+        const totalAmount = session.totalAmount || 1;
+        const firstPayer = resolvedPlayers[0];
+        const ratio0 = firstPayer.amount / totalAmount;
+        const shareTime0 = Math.round((session.timeAmount * ratio0) * 100) / 100;
+        const shareFood0 = Math.round((session.foodAmount * ratio0) * 100) / 100;
 
-      if (session.assetId) {
-        const asset = await Asset.findOne({ _id: session.assetId, clubId: req.admin.clubId });
-        if (asset) {
-          asset.status = 'idle';
-          await asset.save();
+        session.players = [{
+          customerId: firstPayer.customerId,
+          displayName: firstPayer.displayName,
+          isPayer: true,
+          shareAmount: firstPayer.amount
+        }];
+        session.timeAmount = shareTime0;
+        session.foodAmount = shareFood0;
+        session.totalAmount = firstPayer.amount;
+        session.paymentStatus = 'unpaid';
+        session.paidAmount = 0;
+        session.pendingAmount = firstPayer.amount;
+        session.status = 'billed';
+        session.finalizedAt = new Date();
+
+        if (session.assetId) {
+          const asset = await Asset.findOne({ _id: session.assetId, clubId: req.admin.clubId });
+          if (asset) {
+            asset.status = 'idle';
+            await asset.save();
+          }
         }
-      }
-      await session.save();
+        await session.save();
 
-      let baseSerial = await nextSerialNumber(req.admin.clubId);
-      for (let i = 1; i < M; i++) {
-        const payer = payerPlayers[i];
-        if (!payer) continue;
-        await GameSession.create({
-          clubId: req.admin.clubId,
-          serialNumber: baseSerial++,
-          assetId: session.assetId,
-          assetLabelOverride: session.assetLabelOverride,
-          startTime: session.startTime,
-          stopTime: session.stopTime,
-          finalizedAt: session.finalizedAt,
-          status: 'billed',
-          timeAmount: shareTime,
-          foodAmount: shareFood,
-          totalAmount: share,
-          paymentStatus: 'unpaid',
-          paidAmount: 0,
-          pendingAmount: share,
-          players: [{
-            customerId: payer.customerId,
-            displayName: payer.displayName,
-            isPayer: true,
-            shareAmount: share
-          }],
-          foodOrders: [],
-          isManualEntry: session.isManualEntry,
-        });
-      }
-    } else {
-      // Single payer
-      const resolvedPayers = session.players.filter(p => targetNames.includes(p.displayName));
-      if (resolvedPayers.length > 0) {
-        session.players = resolvedPayers.map(p => ({
-          customerId: p.customerId,
-          displayName: p.displayName,
+        let baseSerial = await nextSerialNumber(req.admin.clubId);
+        for (let i = 1; i < M; i++) {
+          const payer = resolvedPlayers[i];
+          const ratioI = payer.amount / totalAmount;
+          const shareTimeI = Math.round((session.timeAmount * ratioI) * 100) / 100;
+          const shareFoodI = Math.round((session.foodAmount * ratioI) * 100) / 100;
+
+          await GameSession.create({
+            clubId: req.admin.clubId,
+            serialNumber: baseSerial++,
+            assetId: session.assetId,
+            assetLabelOverride: session.assetLabelOverride,
+            startTime: session.startTime,
+            stopTime: session.stopTime,
+            finalizedAt: session.finalizedAt,
+            status: 'billed',
+            timeAmount: shareTimeI,
+            foodAmount: shareFoodI,
+            totalAmount: payer.amount,
+            paymentStatus: 'unpaid',
+            paidAmount: 0,
+            pendingAmount: payer.amount,
+            players: [{
+              customerId: payer.customerId,
+              displayName: payer.displayName,
+              isPayer: true,
+              shareAmount: payer.amount
+            }],
+            foodOrders: [],
+            isManualEntry: session.isManualEntry,
+          });
+        }
+      } else {
+        // Single payer custom split flow
+        const firstPayer = resolvedPlayers[0];
+        session.players = [{
+          customerId: firstPayer.customerId,
+          displayName: firstPayer.displayName,
           isPayer: true,
           shareAmount: session.totalAmount,
-        }));
-      }
+        }];
+        session.status        = 'billed';
+        session.finalizedAt   = new Date();
+        session.paymentStatus = 'unpaid';
+        session.paidAmount    = 0;
+        session.pendingAmount = session.totalAmount;
 
-      session.status        = 'billed';
-      session.finalizedAt   = new Date();
-      session.paymentStatus = 'unpaid';
-      session.paidAmount    = 0;
-      session.pendingAmount = session.totalAmount;
-
-      if (session.assetId) {
-        const asset = await Asset.findOne({ _id: session.assetId, clubId: req.admin.clubId });
-        if (asset) {
-          asset.status = 'idle';
-          await asset.save();
+        if (session.assetId) {
+          const asset = await Asset.findOne({ _id: session.assetId, clubId: req.admin.clubId });
+          if (asset) {
+            asset.status = 'idle';
+            await asset.save();
+          }
         }
+        await session.save();
       }
-      await session.save();
+    } else {
+      // Fallback to equal split / payer names
+      let targetNames = [];
+      if (Array.isArray(payer_names) && payer_names.length > 0) {
+        targetNames = payer_names;
+      } else {
+        targetNames = session.players.map(p => p.displayName);
+      }
+
+      if (targetNames.length > 1) {
+        // Split billing between multiple players
+        const M = targetNames.length;
+        const share = Math.round((session.totalAmount / M) * 100) / 100;
+        const shareTime = Math.round((session.timeAmount / M) * 100) / 100;
+        const shareFood = Math.round((session.foodAmount / M) * 100) / 100;
+
+        const payerPlayers = session.players.filter(p => targetNames.includes(p.displayName));
+
+        const firstPayer = payerPlayers[0] || session.players[0];
+        session.players = [{
+          customerId: firstPayer.customerId,
+          displayName: firstPayer.displayName,
+          isPayer: true,
+          shareAmount: share
+        }];
+        session.timeAmount = shareTime;
+        session.foodAmount = shareFood;
+        session.totalAmount = share;
+        session.paymentStatus = 'unpaid';
+        session.paidAmount = 0;
+        session.pendingAmount = share;
+        session.status = 'billed';
+        session.finalizedAt = new Date();
+
+        if (session.assetId) {
+          const asset = await Asset.findOne({ _id: session.assetId, clubId: req.admin.clubId });
+          if (asset) {
+            asset.status = 'idle';
+            await asset.save();
+          }
+        }
+        await session.save();
+
+        let baseSerial = await nextSerialNumber(req.admin.clubId);
+        for (let i = 1; i < M; i++) {
+          const payer = payerPlayers[i];
+          if (!payer) continue;
+          await GameSession.create({
+            clubId: req.admin.clubId,
+            serialNumber: baseSerial++,
+            assetId: session.assetId,
+            assetLabelOverride: session.assetLabelOverride,
+            startTime: session.startTime,
+            stopTime: session.stopTime,
+            finalizedAt: session.finalizedAt,
+            status: 'billed',
+            timeAmount: shareTime,
+            foodAmount: shareFood,
+            totalAmount: share,
+            paymentStatus: 'unpaid',
+            paidAmount: 0,
+            pendingAmount: share,
+            players: [{
+              customerId: payer.customerId,
+              displayName: payer.displayName,
+              isPayer: true,
+              shareAmount: share
+            }],
+            foodOrders: [],
+            isManualEntry: session.isManualEntry,
+          });
+        }
+      } else {
+        // Single payer
+        const resolvedPayers = session.players.filter(p => targetNames.includes(p.displayName));
+        if (resolvedPayers.length > 0) {
+          session.players = resolvedPayers.map(p => ({
+            customerId: p.customerId,
+            displayName: p.displayName,
+            isPayer: true,
+            shareAmount: session.totalAmount,
+          }));
+        }
+
+        session.status        = 'billed';
+        session.finalizedAt   = new Date();
+        session.paymentStatus = 'unpaid';
+        session.paidAmount    = 0;
+        session.pendingAmount = session.totalAmount;
+
+        if (session.assetId) {
+          const asset = await Asset.findOne({ _id: session.assetId, clubId: req.admin.clubId });
+          if (asset) {
+            asset.status = 'idle';
+            await asset.save();
+          }
+        }
+        await session.save();
+      }
     }
 
     const { label, hourlyRate } = await resolveLabelAndRate(session);

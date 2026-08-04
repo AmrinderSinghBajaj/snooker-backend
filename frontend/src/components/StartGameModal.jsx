@@ -3,7 +3,7 @@ import Modal from './Modal';
 import { customersApi } from '../api/endpoints';
 import { useTranslation } from '../utils/translations';
 
-export default function StartGameModal({ asset, onClose, onStarted }) {
+export default function StartGameModal({ asset, onClose, onStarted, hidePlayers = false }) {
   const { t } = useTranslation();
   const [names, setNames] = useState(['']);
   const [customers, setCustomers] = useState([]);
@@ -18,10 +18,12 @@ export default function StartGameModal({ asset, onClose, onStarted }) {
   });
 
   useEffect(() => {
-    customersApi.list()
-      .then((res) => setCustomers(res.data))
-      .catch((err) => console.error('Could not load customers', err));
-  }, []);
+    if (!hidePlayers) {
+      customersApi.list()
+        .then((res) => setCustomers(res.data))
+        .catch((err) => console.error('Could not load customers', err));
+    }
+  }, [hidePlayers]);
 
   const updateName = (i, value) => {
     const copy = [...names];
@@ -39,8 +41,8 @@ export default function StartGameModal({ asset, onClose, onStarted }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const cleaned = names.map((n) => n.trim()).filter(Boolean);
-    if (cleaned.length === 0) {
+    const cleaned = hidePlayers ? [] : names.map((n) => n.trim()).filter(Boolean);
+    if (!hidePlayers && cleaned.length === 0) {
       setError(t('enterAtLeastOnePlayer'));
       return;
     }
@@ -65,6 +67,17 @@ export default function StartGameModal({ asset, onClose, onStarted }) {
           startDate.setTime(now.getTime());
         }
         startTimeIso = startDate.toISOString();
+      } else if (hidePlayers) {
+        // If hidePlayers is true, we are starting in the past, so we MUST require custom time.
+        // But if they didn't touch it, we can just use the current value of startTime.
+        const [hours, minutes] = startTime.split(':').map(Number);
+        const startDate = new Date();
+        startDate.setHours(hours, minutes, 0, 0);
+        const now = new Date();
+        if (startDate.getTime() - now.getTime() > 30 * 60 * 1000) {
+          startDate.setDate(startDate.getDate() - 1);
+        }
+        startTimeIso = startDate.toISOString();
       }
 
       await onStarted(cleaned, startTimeIso);
@@ -76,60 +89,67 @@ export default function StartGameModal({ asset, onClose, onStarted }) {
   };
 
   return (
-    <Modal title={`${t('startGameOn')} ${asset.label}`} onClose={onClose}>
+    <Modal title={hidePlayers ? `Start game in past on ${asset.label}` : `${t('startGameOn')} ${asset.label}`} onClose={onClose}>
       <form onSubmit={handleSubmit}>
-        <label style={styles.label}>{t('playerNames')}</label>
-        {names.map((name, i) => (
-          <div key={i} style={styles.nameRow}>
-            <input
-              style={styles.input}
-              placeholder={`${t('playerPlaceholder')} ${i + 1}`}
-              value={name}
-              onChange={(e) => updateName(i, e.target.value)}
-              autoFocus={i === 0}
-              list="customer-suggestions"
-            />
-            {names.length > 1 && (
-              <button type="button" onClick={() => removeNameField(i)} style={styles.removeBtn}>
-                ×
+        {!hidePlayers && (
+          <>
+            <label style={styles.label}>{t('playerNames')}</label>
+            {names.map((name, i) => (
+              <div key={i} style={styles.nameRow}>
+                <input
+                  style={styles.input}
+                  placeholder={`${t('playerPlaceholder')} ${i + 1}`}
+                  value={name}
+                  onChange={(e) => updateName(i, e.target.value)}
+                  autoFocus={i === 0}
+                  list="customer-suggestions"
+                />
+                {names.length > 1 && (
+                  <button type="button" onClick={() => removeNameField(i)} style={styles.removeBtn}>
+                    ×
+                  </button>
+                )}
+              </div>
+            ))}
+
+            {names.length < 4 && (
+              <button type="button" onClick={addNameField} style={styles.addNameBtn}>
+                + {t('addAnotherPlayer')}
               </button>
             )}
-          </div>
-        ))}
-
-        {names.length < 4 && (
-          <button type="button" onClick={addNameField} style={styles.addNameBtn}>
-            + {t('addAnotherPlayer')}
-          </button>
+          </>
         )}
 
         <div style={{ marginBottom: 18 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
             <label style={{ ...styles.label, marginBottom: 0 }}>{t('startTimeLabel')}</label>
-            <span style={{ fontSize: '0.78rem', color: isCustomTimeTouched ? 'var(--brass-300)' : 'var(--chalk-400)', fontWeight: 600 }}>
-              {isCustomTimeTouched ? '⚡ Custom Past Time Active' : '📍 Starts Now (00:00)'}
+            <span style={{ fontSize: '0.78rem', color: (isCustomTimeTouched || hidePlayers) ? 'var(--brass-300)' : 'var(--chalk-400)', fontWeight: 600 }}>
+              {(isCustomTimeTouched || hidePlayers) ? '⚡ Custom Past Time Active' : '📍 Starts Now (00:00)'}
             </span>
           </div>
           <input
             type="time"
             style={{
               ...styles.timeInput,
-              borderColor: isCustomTimeTouched ? 'var(--brass-500)' : 'var(--felt-500)',
+              borderColor: (isCustomTimeTouched || hidePlayers) ? 'var(--brass-500)' : 'var(--felt-500)',
             }}
             value={startTime}
             onChange={(e) => {
               setStartTime(e.target.value);
               setIsCustomTimeTouched(true);
             }}
+            autoFocus={hidePlayers}
             required
           />
         </div>
 
-        <datalist id="customer-suggestions">
-          {customers.map((c) => (
-            <option key={c.id} value={c.display_name} />
-          ))}
-        </datalist>
+        {!hidePlayers && (
+          <datalist id="customer-suggestions">
+            {customers.map((c) => (
+              <option key={c.id} value={c.display_name} />
+            ))}
+          </datalist>
+        )}
 
         {error && <div style={styles.error}>{error}</div>}
 
