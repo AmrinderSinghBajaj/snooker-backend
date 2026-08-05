@@ -9,10 +9,14 @@ const foodOrderLineSchema = new mongoose.Schema({
 }, { _id: false });
 
 const playerSchema = new mongoose.Schema({
-  customerId:  { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
-  displayName: { type: String, required: true },
-  isPayer:     { type: Boolean, default: false },
-  shareAmount: { type: Number, default: null },
+  customerId:     { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
+  displayName:    { type: String, required: true },
+  isPayer:        { type: Boolean, default: false },
+  shareAmount:    { type: Number, default: null },
+  discountType:   { type: String, enum: ['percentage', 'amount', 'none'], default: 'none' },
+  discountValue:  { type: Number, default: 0 },
+  discountAmount: { type: Number, default: 0 },
+  netAmount:      { type: Number, default: null },
 }, { _id: false });
 
 const gameSessionSchema = new mongoose.Schema({

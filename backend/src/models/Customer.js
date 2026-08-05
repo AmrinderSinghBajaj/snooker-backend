@@ -4,8 +4,9 @@ const customerSchema = new mongoose.Schema({
   clubId:        { type: mongoose.Schema.Types.ObjectId, ref: 'Club', required: true, index: true },
   username:      { type: String, required: true, index: true },
   displayName:   { type: String, required: true },
-  walletBalance: { type: Number, default: 0 },
-  phone:         { type: String, default: '' },
+  walletBalance:    { type: Number, default: 0 },
+  phone:            { type: String, default: '' },
+  membershipSlabId: { type: mongoose.Schema.Types.ObjectId, ref: 'MembershipSlab', default: null },
 }, { timestamps: true });
 
 // Enforce unique usernames scoped within each club

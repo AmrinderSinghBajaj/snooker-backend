@@ -60,6 +60,8 @@ export function serializeBillingRecord(session, assetLabel, hourlyRate = null) {
     calculatedRate = Math.round((timeAmt / minutes) * 60 * 100) / 100;
   }
 
+  const discountAmt = session.players.reduce((acc, p) => acc + (p.discountAmount || 0), 0);
+
   return {
     session_id:          session._id.toString(),
     serial_number:       session.serialNumber,
@@ -68,6 +70,7 @@ export function serializeBillingRecord(session, assetLabel, hourlyRate = null) {
     time_amount:         timeAmt,
     hourly_rate:         calculatedRate ?? 0,
     food_amount:         session.foodAmount ?? 0,
+    discount_amount:     discountAmt,
     total_amount:        session.totalAmount ?? 0,
     payment_status:      session.paymentStatus ?? null,
     payment_method:      session.paymentMethod ?? null,
@@ -103,6 +106,17 @@ export function serializeSessionDetail(session, assetLabel) {
     ordered_by: line.orderedBy || null,
   }));
 
+  const players = session.players.map((p) => ({
+    customerId:     p.customerId ? p.customerId.toString() : null,
+    displayName:    p.displayName,
+    isPayer:        p.isPayer,
+    shareAmount:    p.shareAmount,
+    discountType:   p.discountType ?? 'none',
+    discountValue:  p.discountValue ?? 0,
+    discountAmount: p.discountAmount ?? 0,
+    netAmount:      p.netAmount,
+  }));
+
   return {
     session_id:          session._id.toString(),
     serial_number:       session.serialNumber,
@@ -115,6 +129,7 @@ export function serializeSessionDetail(session, assetLabel) {
     food_amount:         session.foodAmount ?? 0,
     total_amount:        session.totalAmount ?? 0,
     food_lines:          foodLines,
+    players:             players,
     payment_status:      session.paymentStatus ?? null,
     payment_method:      session.paymentMethod ?? null,
     paid_amount:         session.paidAmount ?? 0,
@@ -127,12 +142,13 @@ export function serializeSessionDetail(session, assetLabel) {
 
 export function serializeCustomer(c) {
   return {
-    id:             c._id.toString(),
-    username:       c.username,
-    display_name:   c.displayName,
-    wallet_balance: c.walletBalance ?? 0,
-    phone:          c.phone ?? '',
-    created_at:     c.createdAt,
+    id:                 c._id.toString(),
+    username:           c.username,
+    display_name:       c.displayName,
+    wallet_balance:     c.walletBalance ?? 0,
+    phone:              c.phone ?? '',
+    membership_slab_id: c.membershipSlabId ? c.membershipSlabId.toString() : null,
+    created_at:         c.createdAt,
   };
 }
 

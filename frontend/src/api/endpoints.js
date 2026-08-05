@@ -86,3 +86,11 @@ export const staffApi = {
   update: (id, data) => api.put(`/staff/${id}`, data),
   remove: (id) => api.delete(`/staff/${id}`),
 };
+
+export const membershipsApi = {
+  slabs: () => api.get('/memberships/slabs'),
+  createSlab: (data) => api.post('/memberships/slabs', data),
+  updateSlab: (id, data) => api.put(`/memberships/slabs/${id}`, data),
+  deleteSlab: (id) => api.delete(`/memberships/slabs/${id}`),
+  assign: (customerId, membershipSlabId) => api.post('/memberships/assign', { customerId, membershipSlabId }),
+};

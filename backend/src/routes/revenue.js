@@ -25,6 +25,17 @@ async function sumInWindow(clubId, start, end) {
   return result[0]?.total ?? 0;
 }
 
+/** Sum of discountAmount for billed sessions in a time window for a specific club */
+async function sumDiscountsInWindow(clubId, start, end) {
+  const targetId = clubId && clubId._id ? clubId._id : clubId;
+  const result = await GameSession.aggregate([
+    { $match: { clubId: targetId, status: 'billed', finalizedAt: { $gte: start, $lt: end } } },
+    { $unwind: '$players' },
+    { $group: { _id: null, total: { $sum: '$players.discountAmount' } } }
+  ]);
+  return result[0]?.total ?? 0;
+}
+
 /** Full session docs for sessions with paid amounts in a window, for drilldown lists */
 async function sessionsInWindow(clubId, start, end) {
   const targetId = clubId && clubId._id ? clubId._id : clubId;
@@ -117,8 +128,13 @@ router.get('/monthly', requireAuth, requirePermission('revenue', 'view'), async 
     const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
     const monthEnd   = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
     const total      = await sumInWindow(req.admin.clubId, monthStart, monthEnd);
+    const discountTotal = await sumDiscountsInWindow(req.admin.clubId, monthStart, monthEnd);
     const label      = now.toLocaleDateString('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' });
-    return res.json({ total: Math.round(total * 100) / 100, month_label: label });
+    return res.json({
+      total: Math.round(total * 100) / 100,
+      discount_total: Math.round(discountTotal * 100) / 100,
+      month_label: label
+    });
   } catch (err) {
     console.error('GET /revenue/monthly', err);
     return res.status(500).json({ detail: 'Internal server error' });

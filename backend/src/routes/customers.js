@@ -208,15 +208,16 @@ router.get('/stats', requireAuth, requirePermission('customers', 'view'), async 
     const result = customers.map((c) => {
       const stats = statsMap[c._id.toString()] || { total_spent: 0, sessions_played: 0, last_visit: null };
       return {
-        id:              c._id.toString(),
-        username:        c.username,
-        display_name:    c.displayName,
-        wallet_balance:  c.walletBalance ?? 0,
-        phone:           c.phone ?? '',
-        created_at:      c.createdAt,
-        total_spent:     stats.total_spent,
-        sessions_played: stats.sessions_played,
-        last_visit:      stats.last_visit,
+        id:                 c._id.toString(),
+        username:           c.username,
+        display_name:       c.displayName,
+        wallet_balance:     c.walletBalance ?? 0,
+        phone:              c.phone ?? '',
+        membership_slab_id: c.membershipSlabId ? c.membershipSlabId.toString() : null,
+        created_at:         c.createdAt,
+        total_spent:        stats.total_spent,
+        sessions_played:    stats.sessions_played,
+        last_visit:         stats.last_visit,
       };
     });
 

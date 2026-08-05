@@ -28,11 +28,11 @@ function getSaleTypeName(r, t) {
 function getSaleTypeStyle(r) {
   const hasTime = r.time_played_minutes > 0;
   const hasFood = r.food_amount > 0;
-  
+
   let color = 'var(--chalk-400)';
   let bg = 'rgba(255,255,255,0.05)';
   let border = '1px solid rgba(255,255,255,0.08)';
-  
+
   if (hasTime && hasFood) {
     color = 'var(--brass-300)';
     bg = 'rgba(201,162,75,0.1)';
@@ -46,7 +46,7 @@ function getSaleTypeStyle(r) {
     bg = 'rgba(217,123,43,0.1)';
     border = '1px solid rgba(217,123,43,0.2)';
   }
-  
+
   return {
     display: 'inline-block',
     fontSize: '0.66rem',
@@ -80,7 +80,7 @@ function getWhatsAppLink(phone, record) {
   if (cleanPhone.length === 10) {
     cleanPhone = '91' + cleanPhone;
   }
-  
+
   const clubName = "BAJAJ SNOOKER ARENA";
   const serial = record.serial_number || '';
   const player = record.player_names ? record.player_names.join(', ') : 'Walk-in Player';
@@ -91,10 +91,10 @@ function getWhatsAppLink(phone, record) {
   const paidAmt = `₹${(record.paid_amount || 0).toFixed(2)}`;
   const pendingAmt = `₹${(record.pending_amount || 0).toFixed(2)}`;
   const tableLabel = record.asset_label || '';
-  
+
   const isPaid = record.payment_status === 'paid';
   const method = record.payment_method ? record.payment_method.toUpperCase() : '';
-  
+
   let msg = `=========================\n`;
   msg += ` 🎱 *${clubName}* 🎱\n`;
   msg += `=========================\n`;
@@ -113,14 +113,14 @@ function getWhatsAppLink(phone, record) {
   msg += `-------------------------\n`;
   msg += `💰 *Grand Total:* ${totalAmt}\n`;
   msg += `💵 *Amount Paid:* ${paidAmt}\n`;
-  
+
   if (isPaid) {
     msg += `🟢 *Status:* FULLY PAID ${method ? `(${method})` : ''}\n`;
   } else {
     msg += `🔴 *Status:* PENDING\n`;
     msg += `⚠️ *Balance Due:* ${pendingAmt}\n`;
   }
-  
+
   msg += `Thank you for playing with us!\n`;
   msg += `Hope to see you again soon. 🎱🔥`;
 
@@ -134,7 +134,7 @@ function getOutstandingWhatsAppLink(phone, playerName, allRecords, totalOutstand
   }
 
   const clubName = "BAJAJ SNOOKER ARENA";
-  
+
   // Group records by local date
   const recordsByDay = {};
   allRecords.forEach(rec => {
@@ -201,6 +201,7 @@ export default function Billing() {
   const [searchQuery, setSearchQuery] = useState('');
   const [paymentMethodPrompt, setPaymentMethodPrompt] = useState(null);
   const [outstandingDetailPlayer, setOutstandingDetailPlayer] = useState(null);
+  const [filterType, setFilterType] = useState('all'); // 'all' | 'outstanding' | 'discount'
   const PAGE_SIZE = 15;
 
   const { admin } = useAuth();
@@ -209,7 +210,7 @@ export default function Billing() {
 
   useEffect(() => {
     setPage(1);
-  }, [activeTab, searchQuery]);
+  }, [activeTab, searchQuery, filterType]);
 
   const load = () => {
     setLoading(true);
@@ -291,20 +292,20 @@ export default function Billing() {
 
   const handleSendWhatsAppLater = async (record) => {
     const pName = record.player_names ? record.player_names[0] : '';
-    
+
     // Synchronously find pre-loaded customer phone details
     const matchedCustomer = customers.find(c =>
       (c.display_name || '').toLowerCase().trim() === (pName || '').toLowerCase().trim()
     );
-    
+
     let phone = '';
     if (matchedCustomer && matchedCustomer.phone) {
       phone = matchedCustomer.phone;
     }
-    
+
     if (phone) {
       const url = getWhatsAppLink(phone, record);
-      
+
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       if (isMobile) {
         window.location.href = url;
@@ -325,16 +326,16 @@ export default function Billing() {
         alert('Invalid phone number format. It must contain between 7 and 15 digits.');
         return;
       }
-      
+
       const url = getWhatsAppLink(clean, record);
-      
+
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       if (isMobile) {
         window.location.href = url;
       } else {
         window.open(url, '_blank', 'noopener,noreferrer');
       }
-      
+
       if (matchedCustomer) {
         try {
           await customersApi.updatePhone(matchedCustomer.id, clean);
@@ -350,15 +351,15 @@ export default function Billing() {
     const matchedCustomer = customers.find(c =>
       (c.display_name || '').toLowerCase().trim() === (playerName || '').toLowerCase().trim()
     );
-    
+
     let phone = '';
     if (matchedCustomer && matchedCustomer.phone) {
       phone = matchedCustomer.phone;
     }
-    
+
     if (phone) {
       const url = getOutstandingWhatsAppLink(phone, playerName, allRecords, totalOutstanding);
-      
+
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       if (isMobile) {
         window.location.href = url;
@@ -379,16 +380,16 @@ export default function Billing() {
         alert('Invalid phone number format. It must contain between 7 and 15 digits.');
         return;
       }
-      
+
       const url = getOutstandingWhatsAppLink(clean, playerName, allRecords, totalOutstanding);
-      
+
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       if (isMobile) {
         window.location.href = url;
       } else {
         window.open(url, '_blank', 'noopener,noreferrer');
       }
-      
+
       if (matchedCustomer) {
         try {
           await customersApi.updatePhone(matchedCustomer.id, clean);
@@ -461,14 +462,25 @@ export default function Billing() {
     (acc, r) => {
       acc.total += r.paid_amount;
       acc.pending += r.payment_status === 'unpaid' ? r.pending_amount : 0;
+      acc.discount += r.discount_amount || 0;
       return acc;
     },
-    { total: 0, pending: 0 }
+    { total: 0, pending: 0, discount: 0 }
   );  // Filter records based on active tab & search query
-  const filteredRecords = (activeTab === 'outstanding' 
+  const filteredRecords = (activeTab === 'outstanding'
     ? records.filter(r => r.payment_status === 'unpaid')
     : records
   ).filter(r => {
+    if (activeTab === 'all') {
+      if (filterType === 'outstanding') {
+        return r.payment_status === 'unpaid';
+      }
+      if (filterType === 'discount') {
+        return (r.discount_amount || 0) > 0;
+      }
+    }
+    return true;
+  }).filter(r => {
     if (!searchQuery.trim()) return true;
     const query = searchQuery.toLowerCase().trim();
     return r.player_names.some(name => name.toLowerCase().includes(query));
@@ -477,34 +489,34 @@ export default function Billing() {
   // For outstanding tab: aggregate unpaid amounts by player, filtered by search query
   const outstandingByPlayer = activeTab === 'outstanding'
     ? (() => {
-        const map = {};
-        records
-          .filter(r => r.payment_status === 'unpaid')
-          .filter(r => {
-            if (!searchQuery.trim()) return true;
-            const query = searchQuery.toLowerCase().trim();
-            return r.player_names.some(name => name.toLowerCase().includes(query));
-          })
-          .forEach(r => {
-            const primaryPlayer = r.player_names?.[0] || 'Unknown';
-            if (!map[primaryPlayer]) {
-              map[primaryPlayer] = {
-                player_name: primaryPlayer,
-                total_outstanding: 0,
-                record_count: 0,
-                latest_date: r.start_time,
-                all_records: [],
-              };
-            }
-            map[primaryPlayer].total_outstanding += r.pending_amount || 0;
-            map[primaryPlayer].record_count += 1;
-            map[primaryPlayer].latest_date = new Date(r.start_time) > new Date(map[primaryPlayer].latest_date)
-              ? r.start_time
-              : map[primaryPlayer].latest_date;
-            map[primaryPlayer].all_records.push(r);
-          });
-        return Object.values(map).sort((a, b) => new Date(b.latest_date) - new Date(a.latest_date));
-      })()
+      const map = {};
+      records
+        .filter(r => r.payment_status === 'unpaid')
+        .filter(r => {
+          if (!searchQuery.trim()) return true;
+          const query = searchQuery.toLowerCase().trim();
+          return r.player_names.some(name => name.toLowerCase().includes(query));
+        })
+        .forEach(r => {
+          const primaryPlayer = r.player_names?.[0] || 'Unknown';
+          if (!map[primaryPlayer]) {
+            map[primaryPlayer] = {
+              player_name: primaryPlayer,
+              total_outstanding: 0,
+              record_count: 0,
+              latest_date: r.start_time,
+              all_records: [],
+            };
+          }
+          map[primaryPlayer].total_outstanding += r.pending_amount || 0;
+          map[primaryPlayer].record_count += 1;
+          map[primaryPlayer].latest_date = new Date(r.start_time) > new Date(map[primaryPlayer].latest_date)
+            ? r.start_time
+            : map[primaryPlayer].latest_date;
+          map[primaryPlayer].all_records.push(r);
+        });
+      return Object.values(map).sort((a, b) => new Date(b.latest_date) - new Date(a.latest_date));
+    })()
     : [];
 
   const outstandingTotals = outstandingByPlayer.reduce(
@@ -547,7 +559,7 @@ export default function Billing() {
             ...styles.tabBtn,
             ...(activeTab === 'all' ? styles.tabBtnActive : styles.tabBtnInactive),
           }}
-          onClick={() => setActiveTab('all')}
+          onClick={() => { setActiveTab('all'); setFilterType('all'); }}
         >
           {t('allBills')}
         </button>
@@ -556,7 +568,7 @@ export default function Billing() {
             ...styles.tabBtn,
             ...(activeTab === 'outstanding' ? styles.tabBtnActive : styles.tabBtnInactive),
           }}
-          onClick={() => setActiveTab('outstanding')}
+          onClick={() => { setActiveTab('outstanding'); setFilterType('all'); }}
         >
           {t('outstandingTab')} ({records.filter(r => r.payment_status === 'unpaid').length})
         </button>
@@ -583,8 +595,27 @@ export default function Billing() {
         <div style={styles.statsRow}>
           {activeTab === 'all' ? (
             <>
-              <StatPill label={t('outstandingTab')} value={`₹${totals.pending.toFixed(2)}`} accent={totals.pending > 0 ? 'orange' : 'green'} />
-              <StatPill label={t('history')} value={String(records.length)} accent="neutral" />
+              <StatPill
+                label={t('allBills')}
+                value={String(records.length)}
+                accent="neutral"
+                onClick={() => setFilterType('all')}
+                active={filterType === 'all'}
+              />
+              <StatPill
+                label={t('outstandingTab')}
+                value={`₹${totals.pending.toFixed(2)}`}
+                accent={totals.pending > 0 ? 'orange' : 'green'}
+                onClick={() => setFilterType(filterType === 'outstanding' ? 'all' : 'outstanding')}
+                active={filterType === 'outstanding'}
+              />
+              <StatPill
+                label="Discount Total"
+                value={`₹${totals.discount.toFixed(2)}`}
+                accent="brass"
+                onClick={() => setFilterType(filterType === 'discount' ? 'all' : 'discount')}
+                active={filterType === 'discount'}
+              />
             </>
           ) : (
             <>
@@ -593,6 +624,28 @@ export default function Billing() {
               <StatPill label={t('players')} value={String(outstandingByPlayer.length)} accent="neutral" />
             </>
           )}
+        </div>
+      )}
+
+      {/* Active Filter Indicator */}
+      {!loading && records.length > 0 && activeTab === 'all' && filterType !== 'all' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, fontSize: '0.85rem', color: 'var(--chalk-300)' }}>
+          <span>Showing: <strong>{filterType === 'outstanding' ? 'Outstanding Bills Only' : 'Discounted Bills Only'}</strong></span>
+          <button
+            onClick={() => setFilterType('all')}
+            style={{
+              background: 'rgba(255,255,255,0.06)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              color: 'var(--brass-300)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '2px 8px',
+              fontSize: '0.78rem',
+              cursor: 'pointer',
+              fontWeight: 650
+            }}
+          >
+            Clear Filter
+          </button>
         </div>
       )}
 
@@ -814,7 +867,7 @@ export default function Billing() {
                       </button>
                       {canEditBilling && (
                         <button
-                          style={{...styles.iconBtn, ...{color: 'var(--green-go)'}}}
+                          style={{ ...styles.iconBtn, ...{ color: 'var(--green-go)' } }}
                           onClick={() => {
                             setPaymentMethodPrompt({
                               type: 'all',
@@ -899,13 +952,17 @@ export default function Billing() {
             <p style={{ color: 'var(--chalk-400)' }}>{t('loading')}</p>
           ) : (
             <div>
-              <p style={styles.detailLine}>
-                <strong>{detail.player_names.join(', ')}</strong>
-              </p>
-              <p style={styles.detailLine}>
-                {new Date(detail.start_time).toLocaleString()} → {new Date(detail.stop_time).toLocaleString()}
-              </p>
-              <p style={styles.detailLine}>{t('timeCharge')}: ₹{detail.time_amount.toFixed(2)}</p>
+              {((detailSession.time_played_minutes || 0) > 0 || (detail.time_amount || 0) > 0) && (
+                <>
+                  <p style={styles.detailLine}>
+                    <strong>{detail.player_names.join(', ')}</strong>
+                  </p>
+                  <p style={styles.detailLine}>
+                    {new Date(detail.start_time).toLocaleString()} → {new Date(detail.stop_time).toLocaleString()}
+                  </p>
+                  <p style={styles.detailLine}>{t('timeCharge')}: ₹{detail.time_amount.toFixed(2)}</p>
+                </>
+              )}
               {detail.food_lines.length > 0 && (
                 <>
                   <p style={styles.detailLine}><strong>{t('foodDrinkLabel')}:</strong></p>
@@ -916,6 +973,20 @@ export default function Billing() {
                   </ul>
                 </>
               )}
+              {(() => {
+                const originalTotal = detail.players ? detail.players.reduce((sum, p) => sum + (p.shareAmount || p.netAmount || 0), 0) : detail.total_amount;
+                const totalDiscount = detail.players ? detail.players.reduce((sum, p) => sum + (p.discountAmount || 0), 0) : 0;
+                return totalDiscount > 0 ? (
+                  <>
+                    <p style={styles.detailLine}>
+                      Subtotal: ₹{originalTotal.toFixed(2)}
+                    </p>
+                    <p style={{ ...styles.detailLine, color: 'var(--brass-300)', fontWeight: 600 }}>
+                      Discount: -₹{totalDiscount.toFixed(2)}
+                    </p>
+                  </>
+                ) : null;
+              })()}
               <p style={{ ...styles.detailLine, fontWeight: 700, fontSize: '1.05rem' }}>
                 {t('total')}: ₹{detail.total_amount.toFixed(2)}
               </p>
@@ -1098,7 +1169,7 @@ export default function Billing() {
   );
 }
 
-function StatPill({ label, value, accent }) {
+function StatPill({ label, value, accent, onClick, active }) {
   const accentColor = {
     brass: 'var(--brass-300)',
     green: 'var(--green-go)',
@@ -1107,7 +1178,18 @@ function StatPill({ label, value, accent }) {
   }[accent];
 
   return (
-    <div style={styles.statPill}>
+    <div
+      onClick={onClick}
+      style={{
+        ...styles.statPill,
+        cursor: onClick ? 'pointer' : 'default',
+        border: active ? '1.5px solid var(--brass-500)' : '1px solid var(--felt-600)',
+        background: active ? 'rgba(201, 162, 75, 0.08)' : 'var(--felt-700)',
+        transform: active ? 'scale(1.015)' : 'none',
+        boxShadow: active ? '0 4px 12px rgba(201, 162, 75, 0.12)' : 'none',
+        transition: 'all 0.15s ease',
+      }}
+    >
       <div style={styles.statLabel}>{label}</div>
       <div style={{ ...styles.statValue, color: accentColor }}>{value}</div>
     </div>
@@ -1362,7 +1444,7 @@ const styles = {
     justifyContent: 'center',
     transition: 'all 0.15s ease',
   },
-  detailLine: { color: 'var(--chalk-200)', fontSize: '0.9rem', marginBottom: 8 },
+  detailLine: { color: 'var(--chalk-200)', fontSize: '0.9rem', marginTop: 0, marginBottom: 8 },
   foodList: { color: 'var(--chalk-200)', fontSize: '0.88rem', margin: '4px 0 12px' },
   label: {
     display: 'block',
@@ -1491,7 +1573,7 @@ function PaymentSettlementModal({ prompt, onClose, onConfirm, lang, t }) {
   const [offlineAmt, setOfflineAmt] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [modalErr, setModalErr] = useState('');
-  
+
   const [successRecord, setSuccessRecord] = useState(null);
   const [phoneInput, setPhoneInput] = useState('');
 
@@ -1647,14 +1729,14 @@ function PaymentSettlementModal({ prompt, onClose, onConfirm, lang, t }) {
               }}
               onClick={async () => {
                 const url = getWhatsAppLink(phoneInput, successRecord);
-                
+
                 const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
                 if (isMobile) {
                   window.location.href = url;
                 } else {
                   window.open(url, '_blank', 'noopener,noreferrer');
                 }
-                
+
                 if (customer && phoneInput.trim() && phoneInput.trim() !== customer.phone) {
                   try {
                     await customersApi.updatePhone(customer.id, phoneInput.trim());
@@ -1662,7 +1744,7 @@ function PaymentSettlementModal({ prompt, onClose, onConfirm, lang, t }) {
                     console.error('Could not save phone number', e);
                   }
                 }
-                
+
                 onClose();
               }}
             >
@@ -1866,7 +1948,7 @@ function PaymentSettlementModal({ prompt, onClose, onConfirm, lang, t }) {
         {mode === 'split' && (
           <div style={{ background: 'var(--felt-900)', padding: 14, borderRadius: 'var(--radius-sm)', display: 'flex', flexDirection: 'column', gap: 10, border: '1px solid var(--felt-600)' }}>
             <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--chalk-200)' }}>Split Breakdown:</div>
-            
+
             <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem', color: 'var(--chalk-300)' }}>
               <span>👛 Wallet (Max ₹{availableWallet.toFixed(2)}):</span>
               <input

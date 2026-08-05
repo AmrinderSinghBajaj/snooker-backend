@@ -226,6 +226,19 @@ export default function Revenue() {
           <div style={{ ...styles.donutValue, color: 'var(--brass-300)', marginTop: 8 }}>₹{(monthly?.total || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
           <div style={styles.donutHint}>{t('clickForCalendarBreakdown')}</div>
         </Card>
+
+        {/* Monthly Discount Card */}
+        <Card style={{ ...styles.donutCard, cursor: 'default' }}>
+          <h3 style={styles.donutTitle}>Monthly Discounts</h3>
+          <div style={{ ...styles.monthGaugeWrapper, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            <span style={{ fontSize: '2rem', marginTop: 10 }}>🏷️</span>
+            <span style={{ fontSize: '0.78rem', color: 'var(--chalk-400)', textAlign: 'center', lineHeight: 1.4 }}>Total discounts given to players this month</span>
+          </div>
+          <div style={{ ...styles.donutValue, color: 'var(--brass-300)', marginTop: 8 }}>
+            ₹{(monthly?.discount_total || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          </div>
+          <div style={styles.donutHint}>Immutable Audit Trail</div>
+        </Card>
       </div>
 
       <div style={styles.searchRow}>

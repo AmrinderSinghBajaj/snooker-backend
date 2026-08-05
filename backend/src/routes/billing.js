@@ -190,10 +190,19 @@ router.post('/:sessionId/done', requireAuth, requirePermission('billing', 'edit'
       const resolvedPlayers = await Promise.all(
         players.map(async (p) => {
           const customer = await getOrCreateCustomer(req.admin.clubId, p.name);
+          const share = Number(p.amount) || 0;
+          const discType = p.discountType || 'none';
+          const discVal = Number(p.discountValue) || 0;
+          const discAmt = Number(p.discountAmount) || 0;
+          const net = Number(p.netAmount) !== undefined ? Number(p.netAmount) : (share - discAmt);
           return {
             customerId: customer._id,
             displayName: customer.displayName,
-            amount: Number(p.amount) || 0
+            amount: share,
+            discountType: discType,
+            discountValue: discVal,
+            discountAmount: discAmt,
+            netAmount: net
           };
         })
       );
@@ -211,14 +220,19 @@ router.post('/:sessionId/done', requireAuth, requirePermission('billing', 'edit'
           customerId: firstPayer.customerId,
           displayName: firstPayer.displayName,
           isPayer: true,
-          shareAmount: firstPayer.amount
+          shareAmount: firstPayer.amount,
+          discountType: firstPayer.discountType,
+          discountValue: firstPayer.discountValue,
+          discountAmount: firstPayer.discountAmount,
+          netAmount: firstPayer.netAmount,
         }];
         session.timeAmount = shareTime0;
         session.foodAmount = shareFood0;
-        session.totalAmount = firstPayer.amount;
-        session.paymentStatus = 'unpaid';
+        session.totalAmount = firstPayer.netAmount;
+        session.paymentStatus = firstPayer.netAmount === 0 ? 'paid' : 'unpaid';
         session.paidAmount = 0;
-        session.pendingAmount = firstPayer.amount;
+        session.pendingAmount = firstPayer.netAmount === 0 ? 0 : firstPayer.netAmount;
+        session.paymentMethod = firstPayer.netAmount === 0 ? 'offline' : null;
         session.status = 'billed';
         session.finalizedAt = new Date();
 
@@ -249,15 +263,20 @@ router.post('/:sessionId/done', requireAuth, requirePermission('billing', 'edit'
             status: 'billed',
             timeAmount: shareTimeI,
             foodAmount: shareFoodI,
-            totalAmount: payer.amount,
-            paymentStatus: 'unpaid',
+            totalAmount: payer.netAmount,
+            paymentStatus: payer.netAmount === 0 ? 'paid' : 'unpaid',
             paidAmount: 0,
-            pendingAmount: payer.amount,
+            pendingAmount: payer.netAmount === 0 ? 0 : payer.netAmount,
+            paymentMethod: payer.netAmount === 0 ? 'offline' : null,
             players: [{
               customerId: payer.customerId,
               displayName: payer.displayName,
               isPayer: true,
-              shareAmount: payer.amount
+              shareAmount: payer.amount,
+              discountType: payer.discountType,
+              discountValue: payer.discountValue,
+              discountAmount: payer.discountAmount,
+              netAmount: payer.netAmount,
             }],
             foodOrders: [],
             isManualEntry: session.isManualEntry,
@@ -271,12 +290,18 @@ router.post('/:sessionId/done', requireAuth, requirePermission('billing', 'edit'
           displayName: firstPayer.displayName,
           isPayer: true,
           shareAmount: session.totalAmount,
+          discountType: firstPayer.discountType,
+          discountValue: firstPayer.discountValue,
+          discountAmount: firstPayer.discountAmount,
+          netAmount: firstPayer.netAmount,
         }];
         session.status        = 'billed';
         session.finalizedAt   = new Date();
-        session.paymentStatus = 'unpaid';
+        session.paymentStatus = firstPayer.netAmount === 0 ? 'paid' : 'unpaid';
         session.paidAmount    = 0;
-        session.pendingAmount = session.totalAmount;
+        session.totalAmount   = firstPayer.netAmount;
+        session.pendingAmount = firstPayer.netAmount === 0 ? 0 : firstPayer.netAmount;
+        session.paymentMethod = firstPayer.netAmount === 0 ? 'offline' : null;
 
         if (session.assetId) {
           const asset = await Asset.findOne({ _id: session.assetId, clubId: req.admin.clubId });

@@ -5,7 +5,6 @@ import { useAuth } from '../context/AuthContext';
 import { secureSessionStorage } from '../utils/storage';
 import Card from '../components/Card';
 import LiveTimer from '../components/LiveTimer';
-import StartGameModal from '../components/StartGameModal';
 import CheckoutModal from '../components/CheckoutModal';
 import EditPlayersModal from '../components/EditPlayersModal';
 import Table3DModel from '../components/Table3DModel';
@@ -91,18 +90,33 @@ export default function Dashboard() {
   const sessionForAsset = (assetId) =>
     activeSessions.find((s) => s.asset_id === assetId);
 
-  const handleStarted = async (playerNames, startTimeIso) => {
-    await assetsApi.startGame(startModalAsset.id, playerNames, startTimeIso);
-    setStartModalAsset(null);
-    loadAll(true);
-  };
-
   const handleStartInstantly = async (asset) => {
     try {
       await assetsApi.startGame(asset.id, []);
       loadAll(true);
     } catch {
       setError(t('couldNotStartGame') || 'Could not start game.');
+    }
+  };
+
+  const handleStartPastTime = async (asset, timeVal) => {
+    try {
+      const [hours, minutes] = timeVal.split(':').map(Number);
+      const startDate = new Date();
+      startDate.setHours(hours, minutes, 0, 0);
+
+      const now = new Date();
+      const diffMs = startDate.getTime() - now.getTime();
+      if (diffMs > 30 * 60 * 1000) {
+        startDate.setDate(startDate.getDate() - 1);
+      } else if (diffMs > 0) {
+        startDate.setTime(now.getTime());
+      }
+      
+      await assetsApi.startGame(asset.id, [], startDate.toISOString());
+      loadAll(true);
+    } catch {
+      setError(t('couldNotStartGame') || 'Could not start game in the past.');
     }
   };
 
@@ -308,14 +322,34 @@ export default function Dashboard() {
                         <button
                           style={{
                             ...styles.clockBtn,
+                            position: 'relative',
                             ...(!canEditTables ? styles.disabledBtn : {})
                           }}
                           disabled={!canEditTables}
-                          onClick={() => setStartModalAsset(asset)}
                           title="Start time in past"
                           aria-label="Start time in past"
                         >
                           🕒
+                          <input
+                            type="time"
+                            style={{
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              width: '100%',
+                              height: '100%',
+                              opacity: 0,
+                              cursor: 'pointer',
+                              border: 'none',
+                              outline: 'none',
+                            }}
+                            onChange={(e) => {
+                              const timeVal = e.target.value;
+                              if (timeVal) {
+                                handleStartPastTime(asset, timeVal);
+                              }
+                            }}
+                          />
                         </button>
                       </div>
                     ) : (
@@ -352,14 +386,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {startModalAsset && (
-        <StartGameModal
-          asset={startModalAsset}
-          onClose={() => setStartModalAsset(null)}
-          onStarted={handleStarted}
-          hidePlayers={true}
-        />
-      )}
+
 
       {checkoutSession && (
         <CheckoutModal

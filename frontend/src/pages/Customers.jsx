@@ -50,13 +50,14 @@ export default function Customers() {
   const { t, lang } = useTranslation();
   const { admin } = useAuth();
   const [customers, setCustomers] = useState([]);
+  const [slabs, setSlabs] = useState([]);
   
   const canDeleteCustomer = admin?.role === 'Club Owner' || admin?.role === 'superadmin' || !!admin?.permissions?.customers?.delete;
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState('');
   const [search, setSearch]       = useState('');
   const [sort, setSort]           = useState('revenue'); // 'revenue' | 'sessions' | 'recent' | 'name'
-  const [view, setView]           = useState('grid');    // 'grid' | 'table'
+  const [view, setView]           = useState('table');    // 'grid' | 'table'
   const [page, setPage]           = useState(1);
   const PAGE_SIZE = 15;
 
@@ -71,6 +72,10 @@ export default function Customers() {
         setError(lang === 'hi' ? 'ग्राहक डेटा लोड नहीं किया जा सका।' : lang === 'pb' ? 'ਗਾਹਕ ਡੇਟਾ ਲੋਡ ਨਹੀਂ ਕੀਤਾ ਜਾ ਸਕਿਆ।' : 'Could not load customer data.');
       })
       .finally(() => setLoading(false));
+
+    api.get('/memberships/slabs')
+      .then((r) => setSlabs(r.data))
+      .catch((err) => console.error('Could not load slabs', err));
   }, [lang]);
 
   const handleDeleteCustomer = async (id, name) => {
@@ -219,7 +224,17 @@ export default function Customers() {
                   >
                     <div style={cardStyles.topRow}>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={cardStyles.name}>{c.display_name}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                          <div style={cardStyles.name}>{c.display_name}</div>
+                          {(() => {
+                            const slab = slabs.find(s => s._id === c.membership_slab_id || s.id === c.membership_slab_id);
+                            return slab ? (
+                              <span style={{ fontSize: '0.68rem', color: 'var(--brass-300)', background: 'rgba(201,162,75,0.12)', border: '1px solid rgba(201,162,75,0.25)', borderRadius: 4, padding: '1px 5px', fontWeight: 600 }}>
+                                {slab.name}
+                              </span>
+                            ) : null;
+                          })()}
+                        </div>
                         {c.phone && <div style={{ fontSize: '0.78rem', color: 'var(--brass-300)', marginTop: 2, fontFamily: 'var(--font-mono)' }}>📞 {c.phone}</div>}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -284,7 +299,17 @@ export default function Customers() {
                       <tr key={c.id} className="customer-row" style={tableStyles.tr}>
                         <td style={tableStyles.td}><RankBadge rank={rank} /></td>
                         <td style={tableStyles.td}>
-                          <div style={{ fontWeight: 600, color: 'var(--chalk-100)' }}>{c.display_name}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontWeight: 600, color: 'var(--chalk-100)' }}>{c.display_name}</span>
+                            {(() => {
+                              const slab = slabs.find(s => s._id === c.membership_slab_id || s.id === c.membership_slab_id);
+                              return slab ? (
+                                <span style={{ fontSize: '0.68rem', color: 'var(--brass-300)', background: 'rgba(201,162,75,0.12)', border: '1px solid rgba(201,162,75,0.25)', borderRadius: 4, padding: '1px 5px', fontWeight: 600 }}>
+                                  {slab.name}
+                                </span>
+                              ) : null;
+                            })()}
+                          </div>
                         </td>
                         <td style={tableStyles.td}>
                           <div style={{ fontFamily: 'var(--font-mono)', color: c.phone ? 'var(--chalk-300)' : 'var(--chalk-500)', fontSize: '0.85rem' }}>
