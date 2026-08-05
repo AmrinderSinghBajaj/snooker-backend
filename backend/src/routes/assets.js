@@ -1,3 +1,4 @@
+// Force deploy: trigger update deployment for assets router
 import { Router } from 'express';
 import Asset, { ASSET_CATEGORIES } from '../models/Asset.js';
 import GameSession from '../models/GameSession.js';
