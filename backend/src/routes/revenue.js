@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import bcrypt from 'bcryptjs';
 import GameSession from '../models/GameSession.js';
 import Club from '../models/Club.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -278,6 +279,127 @@ router.get('/search/range', requireAuth, requirePermission('revenue', 'view'), a
     });
   } catch (err) {
     console.error('GET /revenue/search/range', err);
+    return res.status(500).json({ detail: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /revenue/password-status
+ */
+router.get('/password-status', requireAuth, async (req, res) => {
+  try {
+    const club = await Club.findById(req.admin.clubId);
+    if (!club) return res.status(404).json({ detail: 'Club not found' });
+    return res.json({ has_password: !!club.revenuePassword });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ detail: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /revenue/password/set
+ */
+router.post('/password/set', requireAuth, async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password) return res.status(422).json({ detail: 'Password is required' });
+    const club = await Club.findById(req.admin.clubId);
+    if (!club) return res.status(404).json({ detail: 'Club not found' });
+    
+    const salt = await bcrypt.genSalt(10);
+    club.revenuePassword = await bcrypt.hash(password, salt);
+    await club.save();
+    
+    return res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ detail: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /revenue/password/verify
+ */
+router.post('/password/verify', requireAuth, async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password) return res.status(422).json({ detail: 'Password is required' });
+    const club = await Club.findById(req.admin.clubId);
+    if (!club) return res.status(404).json({ detail: 'Club not found' });
+    
+    if (!club.revenuePassword) {
+      return res.json({ success: true });
+    }
+    
+    const isMatch = await bcrypt.compare(password, club.revenuePassword);
+    if (!isMatch) {
+      return res.status(400).json({ success: false, detail: 'Incorrect password' });
+    }
+    
+    return res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ detail: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /revenue/password/change
+ */
+router.post('/password/change', requireAuth, async (req, res) => {
+  try {
+    const { current_password, new_password } = req.body;
+    if (!current_password || !new_password) {
+      return res.status(422).json({ detail: 'Current and new passwords are required' });
+    }
+    const club = await Club.findById(req.admin.clubId);
+    if (!club) return res.status(404).json({ detail: 'Club not found' });
+    
+    if (club.revenuePassword) {
+      const isMatch = await bcrypt.compare(current_password, club.revenuePassword);
+      if (!isMatch) {
+        return res.status(400).json({ detail: 'Incorrect current password' });
+      }
+    }
+    
+    const salt = await bcrypt.genSalt(10);
+    club.revenuePassword = await bcrypt.hash(new_password, salt);
+    await club.save();
+    
+    return res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ detail: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /revenue/password/reset
+ */
+router.post('/password/reset', requireAuth, async (req, res) => {
+  try {
+    const { login_password, new_password } = req.body;
+    if (!login_password || !new_password) {
+      return res.status(422).json({ detail: 'Login password and new revenue password are required' });
+    }
+    
+    // Validate main login password
+    const isLoginMatch = await bcrypt.compare(login_password, req.admin.hashedPassword);
+    if (!isLoginMatch) {
+      return res.status(400).json({ detail: 'Incorrect account login password' });
+    }
+    
+    const club = await Club.findById(req.admin.clubId);
+    if (!club) return res.status(404).json({ detail: 'Club not found' });
+    
+    const salt = await bcrypt.genSalt(10);
+    club.revenuePassword = await bcrypt.hash(new_password, salt);
+    await club.save();
+    
+    return res.json({ success: true });
+  } catch (err) {
+    console.error(err);
     return res.status(500).json({ detail: 'Internal server error' });
   }
 });

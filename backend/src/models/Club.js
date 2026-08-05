@@ -14,7 +14,8 @@ const clubSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true, required: true },
   expiryDate: { type: Date, default: null },
   firstLoginAt: { type: Date, default: null },
-  trialDurationDays: { type: Number, default: null }
+  trialDurationDays: { type: Number, default: null },
+  revenuePassword: { type: String, default: null }
 }, { timestamps: true });
 
 export default mongoose.model('Club', clubSchema);

@@ -63,6 +63,11 @@ export const revenueApi = {
   drilldownMonth: (year, month) => api.get('/revenue/drilldown/month', { params: { year, month } }),
   searchDate: (targetDate) => api.get('/revenue/search/date', { params: { target_date: targetDate } }),
   searchRange: (startDate, endDate) => api.get('/revenue/search/range', { params: { start_date: startDate, end_date: endDate } }),
+  passwordStatus: () => api.get('/revenue/password-status'),
+  setPassword: (password) => api.post('/revenue/password/set', { password }),
+  verifyPassword: (password) => api.post('/revenue/password/verify', { password }),
+  changePassword: (currentPassword, newPassword) => api.post('/revenue/password/change', { current_password: currentPassword, new_password: newPassword }),
+  resetPassword: (loginPassword, newPassword) => api.post('/revenue/password/reset', { login_password: loginPassword, new_password: newPassword }),
 };
 
 export const customersApi = {

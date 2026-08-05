@@ -63,21 +63,179 @@ export default function Revenue() {
   const [rangeEnd, setRangeEnd] = useState('');
   const [rangeResult, setRangeResult] = useState(null);
 
+  // Password Lock state
+  const [unlocked, setUnlocked] = useState(false);
+  const [hasPassword, setHasPassword] = useState(false);
+  const [passLoading, setPassLoading] = useState(true);
+  const [lockPassword, setLockPassword] = useState('');
+  const [showLockPass, setShowLockPass] = useState(false);
+  const [lockError, setLockError] = useState('');
+  const [verifying, setVerifying] = useState(false);
+
+  // Set/Change Modal state
+  const [showPassModal, setShowPassModal] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPass, setShowCurrentPass] = useState(false);
+  const [showNewPass, setShowNewPass] = useState(false);
+  const [showConfirmPass, setShowConfirmPass] = useState(false);
+  const [modalError, setModalError] = useState('');
+  const [modalSuccess, setModalSuccess] = useState('');
+  const [modalSaving, setModalSaving] = useState(false);
+
+  // Forgot / Reset Password Modal state
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetLoginPassword, setResetLoginPassword] = useState('');
+  const [resetNewPassword, setResetNewPassword] = useState('');
+  const [resetConfirmPassword, setResetConfirmPassword] = useState('');
+  const [showResetLogin, setShowResetLogin] = useState(false);
+  const [showResetNew, setShowResetNew] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [resetError, setResetError] = useState('');
+  const [resetSuccess, setResetSuccess] = useState('');
+  const [resetSaving, setResetSaving] = useState(false);
+
   const load = useCallback(() => {
     setLoading(true);
     Promise.all([revenueApi.today(), revenueApi.weekly(), revenueApi.monthly()])
-      .then(([t, w, m]) => {
-        setToday(t.data);
-        setWeekly(w.data);
-        setMonthly(m.data);
+      .then(([tRes, wRes, mRes]) => {
+        setToday(tRes.data);
+        setWeekly(wRes.data);
+        setMonthly(mRes.data);
       })
-      .catch(() => setError(t('errorLoading')))
+      .catch(() => setError(t('errorLoading') || 'Could not load revenue data.'))
       .finally(() => setLoading(false));
   }, [t]);
 
   useEffect(() => {
-    load();
+    // Always start locked when component mounts (navigating into Revenue)
+    sessionStorage.removeItem('revenue_unlocked');
+
+    revenueApi.passwordStatus()
+      .then(res => {
+        const hasPass = res.data.has_password;
+        setHasPassword(hasPass);
+        if (!hasPass) {
+          // No password set — grant access immediately
+          setUnlocked(true);
+          load();
+        } else {
+          // Password exists — always show lock screen on entry
+          setUnlocked(false);
+          setLoading(false);
+        }
+      })
+      .catch(err => {
+        console.error(err);
+        setLoading(false);
+      })
+      .finally(() => {
+        setPassLoading(false);
+      });
+
+    // Cleanup: clear the unlock flag when leaving the Revenue section
+    return () => {
+      sessionStorage.removeItem('revenue_unlocked');
+    };
   }, [load]);
+
+  const handleVerifyPassword = async () => {
+    if (!lockPassword.trim()) {
+      setLockError('Password cannot be empty');
+      return;
+    }
+    setVerifying(true);
+    setLockError('');
+    try {
+      await revenueApi.verifyPassword(lockPassword);
+      sessionStorage.setItem('revenue_unlocked', 'true');
+      setUnlocked(true);
+      load();
+    } catch (err) {
+      setLockError(err.response?.data?.detail || 'Incorrect password.');
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const handleSavePassword = async () => {
+    setModalError('');
+    setModalSuccess('');
+    
+    if (hasPassword && !currentPassword.trim()) {
+      setModalError('Please enter current password');
+      return;
+    }
+    if (!newPassword.trim()) {
+      setModalError('New password cannot be empty');
+      return;
+    }
+    if (newPassword.length < 4) {
+      setModalError('Password must be at least 4 characters long');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setModalError('New password and confirmation do not match');
+      return;
+    }
+    
+    setModalSaving(true);
+    try {
+      if (hasPassword) {
+        await revenueApi.changePassword(currentPassword, newPassword);
+        setModalSuccess('Password changed successfully!');
+      } else {
+        await revenueApi.setPassword(newPassword);
+        setModalSuccess('Password set successfully!');
+        setHasPassword(true);
+      }
+      setTimeout(() => {
+        setShowPassModal(false);
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+        setModalSuccess('');
+      }, 1500);
+    } catch (err) {
+      setModalError(err.response?.data?.detail || 'Failed to save password.');
+    } finally {
+      setModalSaving(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    setResetError('');
+    setResetSuccess('');
+    if (!resetLoginPassword.trim()) {
+      setResetError('Please enter your account login password');
+      return;
+    }
+    if (!resetNewPassword.trim() || resetNewPassword.length < 4) {
+      setResetError('New revenue password must be at least 4 characters');
+      return;
+    }
+    if (resetNewPassword !== resetConfirmPassword) {
+      setResetError('Passwords do not match');
+      return;
+    }
+    setResetSaving(true);
+    try {
+      await revenueApi.resetPassword(resetLoginPassword, resetNewPassword);
+      setResetSuccess('Revenue password reset successfully! You can now log in.');
+      setTimeout(() => {
+        setShowResetModal(false);
+        setResetLoginPassword('');
+        setResetNewPassword('');
+        setResetConfirmPassword('');
+        setResetSuccess('');
+      }, 1800);
+    } catch (err) {
+      setResetError(err.response?.data?.detail || 'Failed to reset password.');
+    } finally {
+      setResetSaving(false);
+    }
+  };
 
   const openDayDrilldown = async () => {
     try {
@@ -129,10 +287,263 @@ export default function Revenue() {
     }
   };
 
+  if (passLoading) {
+    return (
+      <div style={{ ...styles.page, display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
+        <div className="spinner" />
+      </div>
+    );
+  }
+
+  if (!unlocked) {
+    return (
+      <div style={{ ...styles.page, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '70vh' }}>
+        <Card style={{ width: '100%', maxWidth: 400, padding: 32, textAlign: 'center', background: 'var(--felt-800)', border: '1px solid var(--felt-600)', boxShadow: '0 8px 32px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
+          <div style={{ fontSize: '3rem', margin: '10px 0 0' }}>🔒</div>
+          <div>
+            <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--brass-300)', fontSize: '1.4rem', margin: '0 0 8px' }}>
+              Revenue Section Locked
+            </h2>
+            <p style={{ color: 'var(--chalk-400)', fontSize: '0.88rem', margin: 0, lineHeight: 1.4 }}>
+              Please enter the password set by the club owner to unlock financial metrics.
+            </p>
+          </div>
+
+          <div style={{ width: '100%', position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showLockPass ? 'text' : 'password'}
+                placeholder="Enter password..."
+                value={lockPassword}
+                onChange={(e) => setLockPassword(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleVerifyPassword()}
+                style={{
+                  width: '100%',
+                  background: 'var(--felt-900)',
+                  border: '1px solid var(--felt-600)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--chalk-100)',
+                  padding: '10px 40px 10px 12px',
+                  fontSize: '0.95rem',
+                  boxSizing: 'border-box',
+                  outline: 'none',
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowLockPass(!showLockPass)}
+                style={{
+                  position: 'absolute',
+                  right: 12,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--chalk-400)',
+                  cursor: 'pointer',
+                  fontSize: '1.1rem',
+                  padding: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                {showLockPass ? '👁️' : '🙈'}
+              </button>
+            </div>
+
+            {lockError && (
+              <div style={{ color: 'var(--orange-warn)', fontSize: '0.82rem', textAlign: 'left', margin: '-4px 0' }}>
+                {lockError}
+              </div>
+            )}
+
+            <button
+              onClick={handleVerifyPassword}
+              disabled={verifying}
+              style={{
+                background: 'linear-gradient(90deg, var(--brass-500) 0%, var(--brass-300) 100%)',
+                border: 'none',
+                borderRadius: 'var(--radius-sm)',
+                color: 'var(--felt-900)',
+                padding: '10px 0',
+                fontWeight: 700,
+                fontSize: '0.92rem',
+                cursor: verifying ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s ease',
+                boxShadow: '0 4px 12px rgba(201, 162, 75, 0.2)'
+              }}
+            >
+              {verifying ? 'Unlocking...' : 'Unlock Section'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setShowResetModal(true); setLockError(''); }}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--chalk-400)',
+                fontSize: '0.82rem',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                textDecorationStyle: 'dotted',
+                padding: '2px 0',
+                marginTop: 2,
+                transition: 'color 0.2s ease',
+              }}
+              onMouseOver={(e) => e.currentTarget.style.color = 'var(--brass-300)'}
+              onMouseOut={(e) => e.currentTarget.style.color = 'var(--chalk-400)'}
+            >
+              Forgot Revenue Password?
+            </button>
+          </div>
+        </Card>
+
+        {/* Reset Password Modal - rendered inside the lock screen return */}
+        {showResetModal && (
+          <Modal
+            title="Reset Revenue Password"
+            onClose={() => {
+              setShowResetModal(false);
+              setResetLoginPassword('');
+              setResetNewPassword('');
+              setResetConfirmPassword('');
+              setResetError('');
+              setResetSuccess('');
+            }}
+            width={420}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14, padding: '2px 0 4px' }}>
+              <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--chalk-400)', lineHeight: 1.5 }}>
+                Verify your <strong style={{ color: 'var(--chalk-200)' }}>account login password</strong> to reset the revenue section password.
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Login password */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ fontSize: '0.8rem', color: 'var(--chalk-300)', fontWeight: 500 }}>Account Login Password</label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showResetLogin ? 'text' : 'password'}
+                    placeholder="Your main login password"
+                    value={resetLoginPassword}
+                    onChange={(e) => setResetLoginPassword(e.target.value)}
+                    style={{
+                      width: '100%', background: 'var(--felt-900)', border: '1px solid var(--felt-600)',
+                      borderRadius: 'var(--radius-sm)', color: 'var(--chalk-100)',
+                      padding: '8px 36px 8px 10px', fontSize: '0.9rem', boxSizing: 'border-box', outline: 'none'
+                    }}
+                  />
+                  <button type="button" onClick={() => setShowResetLogin(!showResetLogin)}
+                    style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--chalk-400)', cursor: 'pointer', fontSize: '1rem', padding: 0 }}>
+                    {showResetLogin ? '👁️' : '🙈'}
+                  </button>
+                </div>
+              </div>
+
+              {/* New Revenue Password */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ fontSize: '0.8rem', color: 'var(--chalk-300)', fontWeight: 500 }}>New Revenue Password</label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showResetNew ? 'text' : 'password'}
+                    placeholder="Set a new revenue password"
+                    value={resetNewPassword}
+                    onChange={(e) => setResetNewPassword(e.target.value)}
+                    style={{
+                      width: '100%', background: 'var(--felt-900)', border: '1px solid var(--felt-600)',
+                      borderRadius: 'var(--radius-sm)', color: 'var(--chalk-100)',
+                      padding: '8px 36px 8px 10px', fontSize: '0.9rem', boxSizing: 'border-box', outline: 'none'
+                    }}
+                  />
+                  <button type="button" onClick={() => setShowResetNew(!showResetNew)}
+                    style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--chalk-400)', cursor: 'pointer', fontSize: '1rem', padding: 0 }}>
+                    {showResetNew ? '👁️' : '🙈'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Confirm New Revenue Password */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ fontSize: '0.8rem', color: 'var(--chalk-300)', fontWeight: 500 }}>Confirm New Password</label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showResetConfirm ? 'text' : 'password'}
+                    placeholder="Confirm your new revenue password"
+                    value={resetConfirmPassword}
+                    onChange={(e) => setResetConfirmPassword(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleResetPassword()}
+                    style={{
+                      width: '100%', background: 'var(--felt-900)', border: '1px solid var(--felt-600)',
+                      borderRadius: 'var(--radius-sm)', color: 'var(--chalk-100)',
+                      padding: '8px 36px 8px 10px', fontSize: '0.9rem', boxSizing: 'border-box', outline: 'none'
+                    }}
+                  />
+                  <button type="button" onClick={() => setShowResetConfirm(!showResetConfirm)}
+                    style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--chalk-400)', cursor: 'pointer', fontSize: '1rem', padding: 0 }}>
+                    {showResetConfirm ? '👁️' : '🙈'}
+                  </button>
+                </div>
+              </div>
+
+              {resetError && (
+                <div style={{ color: 'var(--orange-warn)', fontSize: '0.82rem' }}>⚠️ {resetError}</div>
+              )}
+              {resetSuccess && (
+                <div style={{ color: 'var(--green-go)', fontSize: '0.82rem', fontWeight: 500 }}>✓ {resetSuccess}</div>
+              )}
+
+              <button
+                onClick={handleResetPassword}
+                disabled={resetSaving}
+                style={{
+                  marginTop: 6,
+                  background: 'linear-gradient(90deg, var(--brass-500) 0%, var(--brass-300) 100%)',
+                  border: 'none', borderRadius: 'var(--radius-sm)', color: 'var(--felt-900)',
+                  padding: '9px 0', fontWeight: 700, fontSize: '0.9rem',
+                  cursor: resetSaving ? 'not-allowed' : 'pointer', transition: 'all 0.2s ease',
+                }}
+              >
+                {resetSaving ? 'Resetting...' : 'Reset & Set New Password'}
+              </button>
+            </div>
+          </Modal>
+        )}
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div style={styles.page}>
-        <h1 style={styles.pageTitle}>{t('revenueAnalytics')}</h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
+          <div>
+            <h1 style={styles.pageTitle}>{t('revenueAnalytics')}</h1>
+            <p style={styles.subtitle}>{t('trackClubEarnings')}</p>
+          </div>
+          <div>
+            <button
+              onClick={() => setShowPassModal(true)}
+              style={{
+                background: 'rgba(201, 162, 75, 0.08)',
+                border: '1px solid var(--brass-500)',
+                borderRadius: 'var(--radius-sm)',
+                color: 'var(--brass-300)',
+                padding: '8px 16px',
+                fontSize: '0.88rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              🔒 {hasPassword ? 'Change Password' : 'Set Password'}
+            </button>
+          </div>
+        </div>
         <div style={styles.donutRow}>
           {[1, 2, 3].map((n) => (
             <div key={n} className="skeleton" style={{ height: 260, borderRadius: 'var(--radius-lg)' }} />
@@ -160,9 +571,40 @@ export default function Revenue() {
 
   return (
     <div style={styles.page}>
-      <div style={styles.header}>
-        <h1 style={styles.pageTitle}>{t('revenueAnalytics')}</h1>
-        <p style={styles.subtitle}>{t('trackClubEarnings')}</p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
+        <div>
+          <h1 style={styles.pageTitle}>{t('revenueAnalytics')}</h1>
+          <p style={styles.subtitle}>{t('trackClubEarnings')}</p>
+        </div>
+        <div>
+          <button
+            onClick={() => setShowPassModal(true)}
+            style={{
+              background: 'rgba(201, 162, 75, 0.08)',
+              border: '1px solid var(--brass-500)',
+              borderRadius: 'var(--radius-sm)',
+              color: 'var(--brass-300)',
+              padding: '8px 16px',
+              fontSize: '0.88rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              transition: 'all 0.2s ease',
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.background = 'rgba(201, 162, 75, 0.15)';
+              e.currentTarget.style.boxShadow = '0 0 10px rgba(201, 162, 75, 0.2)';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.background = 'rgba(201, 162, 75, 0.08)';
+              e.currentTarget.style.boxShadow = 'none';
+            }}
+          >
+            🔒 {hasPassword ? 'Change Password' : 'Set Password'}
+          </button>
+        </div>
       </div>
 
       {error && <div style={styles.errorBanner}>{error}</div>}
@@ -376,6 +818,179 @@ export default function Revenue() {
                 </div>
               );
             })}
+          </div>
+        </Modal>
+      )}
+      {/* Set/Change Password Modal */}
+      {showPassModal && (
+        <Modal
+          title={hasPassword ? 'Change Revenue Password' : 'Set Revenue Password'}
+          onClose={() => {
+            setShowPassModal(false);
+            setCurrentPassword('');
+            setNewPassword('');
+            setConfirmPassword('');
+            setModalError('');
+            setModalSuccess('');
+          }}
+          width={400}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '4px 0 10px' }}>
+            {hasPassword && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ fontSize: '0.8rem', color: 'var(--chalk-300)', fontWeight: 500 }}>Current Password</label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showCurrentPass ? 'text' : 'password'}
+                    placeholder="Enter current password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    style={{
+                      width: '100%',
+                      background: 'var(--felt-900)',
+                      border: '1px solid var(--felt-600)',
+                      borderRadius: 'var(--radius-sm)',
+                      color: 'var(--chalk-100)',
+                      padding: '8px 36px 8px 10px',
+                      fontSize: '0.9rem',
+                      boxSizing: 'border-box',
+                      outline: 'none'
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPass(!showCurrentPass)}
+                    style={{
+                      position: 'absolute',
+                      right: 10,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--chalk-400)',
+                      cursor: 'pointer',
+                      fontSize: '1rem',
+                      padding: 0,
+                    }}
+                  >
+                    {showCurrentPass ? '👁️' : '🙈'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontSize: '0.8rem', color: 'var(--chalk-300)', fontWeight: 500 }}>New Password</label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showNewPass ? 'text' : 'password'}
+                  placeholder="Enter new password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  style={{
+                    width: '100%',
+                    background: 'var(--felt-900)',
+                    border: '1px solid var(--felt-600)',
+                    borderRadius: 'var(--radius-sm)',
+                    color: 'var(--chalk-100)',
+                    padding: '8px 36px 8px 10px',
+                    fontSize: '0.9rem',
+                    boxSizing: 'border-box',
+                    outline: 'none'
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPass(!showNewPass)}
+                  style={{
+                    position: 'absolute',
+                    right: 10,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--chalk-400)',
+                    cursor: 'pointer',
+                    fontSize: '1rem',
+                    padding: 0,
+                  }}
+                >
+                  {showNewPass ? '👁️' : '🙈'}
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontSize: '0.8rem', color: 'var(--chalk-300)', fontWeight: 500 }}>Confirm New Password</label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showConfirmPass ? 'text' : 'password'}
+                  placeholder="Confirm new password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  style={{
+                    width: '100%',
+                    background: 'var(--felt-900)',
+                    border: '1px solid var(--felt-600)',
+                    borderRadius: 'var(--radius-sm)',
+                    color: 'var(--chalk-100)',
+                    padding: '8px 36px 8px 10px',
+                    fontSize: '0.9rem',
+                    boxSizing: 'border-box',
+                    outline: 'none'
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPass(!showConfirmPass)}
+                  style={{
+                    position: 'absolute',
+                    right: 10,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--chalk-400)',
+                    cursor: 'pointer',
+                    fontSize: '1rem',
+                    padding: 0,
+                  }}
+                >
+                  {showConfirmPass ? '👁️' : '🙈'}
+                </button>
+              </div>
+            </div>
+
+            {modalError && (
+              <div style={{ color: 'var(--orange-warn)', fontSize: '0.82rem', marginTop: 4 }}>
+                ⚠️ {modalError}
+              </div>
+            )}
+
+            {modalSuccess && (
+              <div style={{ color: 'var(--green-go)', fontSize: '0.82rem', marginTop: 4, fontWeight: 500 }}>
+                ✓ {modalSuccess}
+              </div>
+            )}
+
+            <button
+              onClick={handleSavePassword}
+              disabled={modalSaving}
+              style={{
+                marginTop: 10,
+                background: 'linear-gradient(90deg, var(--brass-500) 0%, var(--brass-300) 100%)',
+                border: 'none',
+                borderRadius: 'var(--radius-sm)',
+                color: 'var(--felt-900)',
+                padding: '9px 0',
+                fontWeight: 700,
+                fontSize: '0.9rem',
+                cursor: modalSaving ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              {modalSaving ? 'Saving...' : 'Save Password'}
+            </button>
           </div>
         </Modal>
       )}

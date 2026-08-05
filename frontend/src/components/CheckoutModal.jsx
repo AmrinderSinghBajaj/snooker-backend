@@ -197,21 +197,14 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
     setBusy(true);
     setError('');
     try {
-      const cleanedPlayers = players.map(p => ({
-        name: p.name.trim(),
+      const cleanedPlayers = players.map((p, pidx) => ({
+        name: p.name.trim() || `Player ${pidx + 1}`,
         amount: Number(p.amount) || 0,
         discountType: p.discountType || 'none',
         discountValue: Number(p.discountValue) || 0,
         discountAmount: p.discountAmount || 0,
         netAmount: p.netAmount || 0
       }));
-
-      
-      if (cleanedPlayers.some(p => p.name === '')) {
-        setError('Enter names for all players.');
-        setBusy(false);
-        return;
-      }
 
       const totalAllocated = cleanedPlayers.reduce((acc, p) => acc + p.amount, 0);
       if (Math.abs(totalAllocated - stopResult.total_amount) > 0.1) {
@@ -278,7 +271,7 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
 
   const sumOfSplits = players.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
   const splitDiff = stopResult ? Math.abs(sumOfSplits - stopResult.total_amount) : 0;
-  const isSplitValid = stopResult ? (splitDiff < 0.1 && players.every(p => p.name.trim() !== '')) : false;
+  const isSplitValid = stopResult ? (splitDiff < 0.1) : false;
 
   return (
     <Modal title={`Checkout — ${session.asset_label}`} onClose={handleClose} width={480}>
@@ -466,24 +459,24 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
             </button>
           )}
 
-          <div style={{
-            ...styles.allocationStatus,
-            color: isSplitValid ? '#4FA663' : 'var(--orange-warn)',
-            borderColor: isSplitValid ? 'rgba(79,166,99,0.3)' : 'rgba(201,162,75,0.3)',
-            background: isSplitValid ? 'rgba(79,166,99,0.06)' : 'rgba(201,162,75,0.06)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem', fontWeight: 600 }}>
-              <span>Total Allocated:</span>
-              <span>₹{sumOfSplits.toFixed(2)} / ₹{stopResult.total_amount.toFixed(2)}</span>
-            </div>
-            {!isSplitValid && (
-              <div style={{ fontSize: '0.78rem', marginTop: 4, fontWeight: 500 }}>
-                {players.some(p => p.name.trim() === '') 
-                  ? '⚠️ Enter names for all players.' 
-                  : `⚠️ Sum of splits must equal total bill. Diff: ₹${(stopResult.total_amount - sumOfSplits).toFixed(2)}`}
+          {players.length > 1 && (
+            <div style={{
+              ...styles.allocationStatus,
+              color: isSplitValid ? '#4FA663' : 'var(--orange-warn)',
+              borderColor: isSplitValid ? 'rgba(79,166,99,0.3)' : 'rgba(201,162,75,0.3)',
+              background: isSplitValid ? 'rgba(79,166,99,0.06)' : 'rgba(201,162,75,0.06)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem', fontWeight: 600 }}>
+                <span>Total Allocated:</span>
+                <span>₹{sumOfSplits.toFixed(2)} / ₹{stopResult.total_amount.toFixed(2)}</span>
               </div>
-            )}
-          </div>
+              {!isSplitValid && (
+                <div style={{ fontSize: '0.78rem', marginTop: 4, fontWeight: 500 }}>
+                  {`⚠️ Sum of splits must equal total bill. Diff: ₹${(stopResult.total_amount - sumOfSplits).toFixed(2)}`}
+                </div>
+              )}
+            </div>
+          )}
 
           <button type="button" onClick={handleViewDetail} style={styles.detailBtn}>
             See Detail
