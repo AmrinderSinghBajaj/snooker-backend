@@ -27,7 +27,7 @@ export default function StartGameModal({ asset, onClose, onStarted, hidePlayers 
 
   const updateName = (i, value) => {
     const copy = [...names];
-    copy[i] = value;
+    copy[i] = value.slice(0, 25);
     setNames(copy);
   };
 
@@ -101,6 +101,7 @@ export default function StartGameModal({ asset, onClose, onStarted, hidePlayers 
                   placeholder={`${t('playerPlaceholder')} ${i + 1}`}
                   value={name}
                   onChange={(e) => updateName(i, e.target.value)}
+                  maxLength={25}
                   autoFocus={i === 0}
                   list="customer-suggestions"
                 />

@@ -10,6 +10,7 @@ export const translations = {
     foodDrink: "Food and Drink",
     revenue: "Revenue Section",
     memberships: "Membership Section",
+    expenses: "Club Expenses Management",
     settings: "Setting Section",
     advancePayments: "Advance Payment Customers",
     pendingPayments: "Pending Payment Customers",

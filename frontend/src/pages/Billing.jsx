@@ -711,29 +711,54 @@ export default function Billing() {
                     ₹{r.total_amount.toFixed(2)}
                   </td>
                   <td style={styles.td}>
-                    {r.payment_status ? (
-                      <span style={{
-                        ...styles.statusPill,
-                        ...(r.payment_status === 'paid' ? styles.paidPill : styles.unpaidPill),
-                      }}>
-                        <span style={{
-                          ...styles.statusDot,
-                          background: r.payment_status === 'paid' ? 'var(--green-go)' : 'var(--orange-warn)',
-                        }} />
-                        {r.payment_status === 'paid' ? (
-                          <span>
-                            {t('paid')}
-                            {r.payment_method && (
-                              <span style={{ fontSize: '0.7rem', opacity: 0.8, marginLeft: 4, textTransform: 'capitalize' }}>
-                                • {t(r.payment_method)}
-                              </span>
-                            )}
+                    {r.payment_status ? (() => {
+                      const isExempt = r.payment_status === 'paid' && (
+                        r.payment_method === 'exempt' ||
+                        r.total_amount === 0 ||
+                        (r.paid_amount === 0 && r.discount_amount > 0 && r.pending_amount === 0)
+                      );
+
+                      if (isExempt) {
+                        return (
+                          <span style={{
+                            ...styles.statusPill,
+                            background: 'rgba(56, 189, 248, 0.12)',
+                            border: '1px solid rgba(56, 189, 248, 0.3)',
+                            color: '#38bdf8',
+                          }}>
+                            <span style={{
+                              ...styles.statusDot,
+                              background: '#38bdf8',
+                            }} />
+                            <span>100% Exempted</span>
                           </span>
-                        ) : (
-                          `₹${r.pending_amount.toFixed(0)} ${lang === 'hi' ? 'बकाया' : lang === 'pb' ? 'ਬਕਾਇਆ' : 'due'}`
-                        )}
-                      </span>
-                    ) : (
+                        );
+                      }
+
+                      return (
+                        <span style={{
+                          ...styles.statusPill,
+                          ...(r.payment_status === 'paid' ? styles.paidPill : styles.unpaidPill),
+                        }}>
+                          <span style={{
+                            ...styles.statusDot,
+                            background: r.payment_status === 'paid' ? 'var(--green-go)' : 'var(--orange-warn)',
+                          }} />
+                          {r.payment_status === 'paid' ? (
+                            <span>
+                              {t('paid')}
+                              {r.payment_method && (
+                                <span style={{ fontSize: '0.7rem', opacity: 0.8, marginLeft: 4, textTransform: 'capitalize' }}>
+                                  • {t(r.payment_method)}
+                                </span>
+                              )}
+                            </span>
+                          ) : (
+                            `₹${r.pending_amount.toFixed(0)} ${lang === 'hi' ? 'बकाया' : lang === 'pb' ? 'ਬਕਾਇਆ' : 'due'}`
+                          )}
+                        </span>
+                      );
+                    })() : (
                       <div style={styles.payBtnRow}>
                         <button
                           style={{
@@ -992,7 +1017,16 @@ export default function Billing() {
               </p>
               {detail.payment_method && (
                 <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--felt-600)', fontSize: '0.88rem', color: 'var(--chalk-200)', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <div><strong>Payment Mode:</strong> <span style={{ textTransform: 'capitalize' }}>{detail.payment_method}</span></div>
+                  <div>
+                    <strong>Payment Mode:</strong>{' '}
+                    <span style={{
+                      textTransform: (detail.payment_method === 'exempt' || detail.total_amount === 0) ? 'none' : 'capitalize',
+                      color: (detail.payment_method === 'exempt' || detail.total_amount === 0) ? '#38bdf8' : 'inherit',
+                      fontWeight: (detail.payment_method === 'exempt' || detail.total_amount === 0) ? 600 : 'normal'
+                    }}>
+                      {(detail.payment_method === 'exempt' || detail.total_amount === 0) ? '🎟️ 100% Membership Exempt' : detail.payment_method}
+                    </span>
+                  </div>
                   {detail.wallet_paid_amount > 0 && <div>👛 Wallet Paid: ₹{detail.wallet_paid_amount.toFixed(2)}</div>}
                   {detail.online_paid_amount > 0 && <div>📱 Online Paid: ₹{detail.online_paid_amount.toFixed(2)}</div>}
                   {detail.offline_paid_amount > 0 && <div>💵 Cash Paid: ₹{detail.offline_paid_amount.toFixed(2)}</div>}

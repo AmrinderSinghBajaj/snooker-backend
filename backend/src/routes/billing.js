@@ -232,7 +232,7 @@ router.post('/:sessionId/done', requireAuth, requirePermission('billing', 'edit'
         session.paymentStatus = firstPayer.netAmount === 0 ? 'paid' : 'unpaid';
         session.paidAmount = 0;
         session.pendingAmount = firstPayer.netAmount === 0 ? 0 : firstPayer.netAmount;
-        session.paymentMethod = firstPayer.netAmount === 0 ? 'offline' : null;
+        session.paymentMethod = firstPayer.netAmount === 0 ? 'exempt' : null;
         session.status = 'billed';
         session.finalizedAt = new Date();
 
@@ -267,7 +267,7 @@ router.post('/:sessionId/done', requireAuth, requirePermission('billing', 'edit'
             paymentStatus: payer.netAmount === 0 ? 'paid' : 'unpaid',
             paidAmount: 0,
             pendingAmount: payer.netAmount === 0 ? 0 : payer.netAmount,
-            paymentMethod: payer.netAmount === 0 ? 'offline' : null,
+            paymentMethod: payer.netAmount === 0 ? 'exempt' : null,
             players: [{
               customerId: payer.customerId,
               displayName: payer.displayName,
@@ -301,7 +301,7 @@ router.post('/:sessionId/done', requireAuth, requirePermission('billing', 'edit'
         session.paidAmount    = 0;
         session.totalAmount   = firstPayer.netAmount;
         session.pendingAmount = firstPayer.netAmount === 0 ? 0 : firstPayer.netAmount;
-        session.paymentMethod = firstPayer.netAmount === 0 ? 'offline' : null;
+        session.paymentMethod = firstPayer.netAmount === 0 ? 'exempt' : null;
 
         if (session.assetId) {
           const asset = await Asset.findOne({ _id: session.assetId, clubId: req.admin.clubId });

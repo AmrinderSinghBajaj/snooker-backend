@@ -4,7 +4,7 @@ import Customer from '../models/Customer.js';
  * Find or create a Customer record for a given display name within a club.
  */
 export async function getOrCreateCustomer(clubId, displayName) {
-  const trimmed = displayName.trim();
+  const trimmed = displayName.trim().slice(0, 25);
   const base = trimmed.toLowerCase().replace(/\s+/g, '_');
 
   // Check if an exact display-name match already exists for this club

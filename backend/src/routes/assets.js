@@ -11,6 +11,11 @@ import { nextSerialNumber } from '../utils/serial.js';
 
 const router = Router();
 
+function getClubId(admin) {
+  if (!admin || !admin.clubId) return null;
+  return admin.clubId._id ? admin.clubId._id : admin.clubId;
+}
+
 /** Auto-generates the next label for a category inside a specific club */
 async function nextLabel(category, clubId) {
   const count = await Asset.countDocuments({ clubId, category });
@@ -34,7 +39,8 @@ router.get('/', requireAuth, (req, res, next) => {
   return res.status(403).json({ detail: 'Access denied: Insufficient permissions for tables view.' });
 }, async (req, res) => {
   try {
-    const assets = await Asset.find({ clubId: req.admin.clubId, isArchived: false }).sort({ sortOrder: 1, category: 1, createdAt: 1 });
+    const clubId = getClubId(req.admin);
+    const assets = await Asset.find({ clubId, isArchived: false }).sort({ sortOrder: 1, category: 1, createdAt: 1 });
     return res.json(assets.map(serializeAsset));
   } catch (err) {
     console.error('GET /assets', err);
@@ -48,6 +54,7 @@ router.get('/', requireAuth, (req, res, next) => {
  */
 router.post('/', requireAuth, requirePermission('tables', 'edit'), async (req, res) => {
   try {
+    const clubId = getClubId(req.admin);
     const { category, label: customLabel, hourly_rate, image_url } = req.body;
     if (!ASSET_CATEGORIES.includes(category)) {
       return res.status(422).json({ detail: `Invalid category. Must be one of: ${ASSET_CATEGORIES.join(', ')}` });
@@ -55,13 +62,13 @@ router.post('/', requireAuth, requirePermission('tables', 'edit'), async (req, r
     if (!hourly_rate || hourly_rate <= 0) {
       return res.status(422).json({ detail: 'hourly_rate must be greater than 0' });
     }
-    const autoLabel = await nextLabel(category, req.admin.clubId);
+    const autoLabel = await nextLabel(category, clubId);
     const label = (customLabel && typeof customLabel === 'string' && customLabel.trim())
       ? customLabel.trim()
       : autoLabel;
 
     const asset = await Asset.create({
-      clubId:     req.admin.clubId,
+      clubId,
       category,
       label,
       hourlyRate: hourly_rate,
@@ -81,7 +88,8 @@ router.post('/', requireAuth, requirePermission('tables', 'edit'), async (req, r
  */
 router.delete('/:id', requireAuth, requirePermission('tables', 'delete'), async (req, res) => {
   try {
-    const asset = await Asset.findOne({ _id: req.params.id, clubId: req.admin.clubId });
+    const clubId = getClubId(req.admin);
+    const asset = await Asset.findOne({ _id: req.params.id, clubId });
     if (!asset) return res.status(404).json({ detail: 'Asset not found' });
     asset.isArchived = true;
     await asset.save();
@@ -98,8 +106,9 @@ router.delete('/:id', requireAuth, requirePermission('tables', 'delete'), async 
  */
 router.put('/:id', requireAuth, requirePermission('tables', 'edit'), async (req, res) => {
   try {
+    const clubId = getClubId(req.admin);
     const { label, hourly_rate, sort_order } = req.body;
-    const asset = await Asset.findOne({ _id: req.params.id, clubId: req.admin.clubId });
+    const asset = await Asset.findOne({ _id: req.params.id, clubId });
     if (!asset) return res.status(404).json({ detail: 'Asset not found' });
 
     if (label !== undefined) {
@@ -132,7 +141,8 @@ router.put('/:id', requireAuth, requirePermission('tables', 'edit'), async (req,
  */
 router.get('/active-sessions', requireAuth, requirePermission('dashboard', 'view'), async (req, res) => {
   try {
-    const sessions = await GameSession.find({ clubId: req.admin.clubId, status: { $in: ['running', 'paused'] } }).populate('assetId');
+    const clubId = getClubId(req.admin);
+    const sessions = await GameSession.find({ clubId, status: { $in: ['running', 'paused'] } }).populate('assetId');
     const result = sessions.map((s) => {
       const asset = s.assetId;
       if (!asset) return null;
@@ -179,7 +189,8 @@ router.get('/public-active-sessions', resolveTenant, async (req, res) => {
  */
 router.post('/:id/start', requireAuth, requirePermission('tables', 'edit'), async (req, res) => {
   try {
-    const asset = await Asset.findOne({ _id: req.params.id, clubId: req.admin.clubId });
+    const clubId = getClubId(req.admin);
+    const asset = await Asset.findOne({ _id: req.params.id, clubId });
     if (!asset) return res.status(404).json({ detail: 'Asset not found' });
     if (asset.status === 'active') {
       return res.status(400).json({ detail: 'This table/device already has an active game' });
@@ -193,7 +204,7 @@ router.post('/:id/start', requireAuth, requirePermission('tables', 'edit'), asyn
       }
       players = await Promise.all(
         player_names.map(async (name) => {
-          const customer = await getOrCreateCustomer(req.admin.clubId, name);
+          const customer = await getOrCreateCustomer(clubId, name);
           return { customerId: customer._id, displayName: customer.displayName };
         })
       );
@@ -212,9 +223,9 @@ router.post('/:id/start', requireAuth, requirePermission('tables', 'edit'), asyn
       startTime = parsedTime;
     }
 
-    const serial = await nextSerialNumber(req.admin.clubId);
+    const serial = await nextSerialNumber(clubId);
     const session = await GameSession.create({
-      clubId:       req.admin.clubId,
+      clubId,
       serialNumber: serial,
       assetId:      asset._id,
       startTime:    startTime,
@@ -237,14 +248,18 @@ router.post('/:id/start', requireAuth, requirePermission('tables', 'edit'), asyn
  */
 router.post('/:id/pause', requireAuth, requirePermission('tables', 'edit'), async (req, res) => {
   try {
-    const session = await GameSession.findOne({ assetId: req.params.id, clubId: req.admin.clubId, status: 'running' });
+    const clubId = getClubId(req.admin);
+    const session = await GameSession.findOne({ assetId: req.params.id, clubId, status: { $in: ['running', 'paused'] } }).populate('assetId');
     if (!session) return res.status(404).json({ detail: 'No active session found for this table' });
 
-    session.status = 'paused';
-    session.pausedAt = new Date();
-    await session.save();
+    if (session.status === 'running') {
+      session.status = 'paused';
+      session.pausedAt = new Date();
+      await session.save();
+    }
 
-    return res.json({ ok: true, status: session.status });
+    const asset = session.assetId;
+    return res.json({ ok: true, session: serializeActiveSession(session, asset) });
   } catch (err) {
     console.error('POST /assets/:id/pause', err);
     return res.status(500).json({ detail: 'Internal server error' });
@@ -256,21 +271,52 @@ router.post('/:id/pause', requireAuth, requirePermission('tables', 'edit'), asyn
  */
 router.post('/:id/resume', requireAuth, requirePermission('tables', 'edit'), async (req, res) => {
   try {
-    const session = await GameSession.findOne({ assetId: req.params.id, clubId: req.admin.clubId, status: 'paused' });
-    if (!session) return res.status(404).json({ detail: 'No paused session found for this table' });
+    const clubId = getClubId(req.admin);
+    const session = await GameSession.findOne({ assetId: req.params.id, clubId, status: { $in: ['running', 'paused'] } }).populate('assetId');
+    if (!session) return res.status(404).json({ detail: 'No active session found for this table' });
 
-    const now = new Date();
-    if (session.pausedAt) {
-      const pausedFor = now.getTime() - new Date(session.pausedAt).getTime();
-      session.pausedDurationMs = Number(session.pausedDurationMs || 0) + pausedFor;
+    if (session.status === 'paused') {
+      const now = new Date();
+      if (session.pausedAt) {
+        const pausedFor = now.getTime() - new Date(session.pausedAt).getTime();
+        session.pausedDurationMs = Number(session.pausedDurationMs || 0) + pausedFor;
+      }
+      session.pausedAt = null;
+      session.status = 'running';
+      await session.save();
     }
-    session.pausedAt = null;
-    session.status = 'running';
-    await session.save();
 
-    return res.json({ ok: true, status: session.status });
+    const asset = session.assetId;
+    return res.json({ ok: true, session: serializeActiveSession(session, asset) });
   } catch (err) {
     console.error('POST /assets/:id/resume', err);
+    return res.status(500).json({ detail: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /assets/:id/cancel
+ * Hard-cancel an accidental start — deletes the session with NO billing record.
+ */
+router.post('/:id/cancel', requireAuth, requirePermission('tables', 'edit'), async (req, res) => {
+  try {
+    const clubId = getClubId(req.admin);
+    const session = await GameSession.findOne({
+      assetId: req.params.id,
+      clubId,
+      status: { $in: ['running', 'paused'] },
+    });
+    if (!session) return res.status(404).json({ detail: 'No active session found for this table' });
+
+    // Hard-delete the session — no billing record
+    await GameSession.deleteOne({ _id: session._id });
+
+    // Reset asset status back to idle
+    await Asset.findByIdAndUpdate(req.params.id, { status: 'idle' });
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('POST /assets/:id/cancel', err);
     return res.status(500).json({ detail: 'Internal server error' });
   }
 });
@@ -281,9 +327,10 @@ router.post('/:id/resume', requireAuth, requirePermission('tables', 'edit'), asy
  */
 router.put('/active-sessions/:sessionId/players', requireAuth, requirePermission('tables', 'edit'), async (req, res) => {
   try {
+    const clubId = getClubId(req.admin);
     const session = await GameSession.findOne({
       _id: req.params.sessionId,
-      clubId: req.admin.clubId,
+      clubId,
       status: { $in: ['running', 'paused'] },
     }).populate('assetId');
 
@@ -298,7 +345,7 @@ router.put('/active-sessions/:sessionId/players', requireAuth, requirePermission
 
     const players = await Promise.all(
       player_names.map(async (name) => {
-        const customer = await getOrCreateCustomer(req.admin.clubId, name);
+        const customer = await getOrCreateCustomer(clubId, name);
         return { customerId: customer._id, displayName: customer.displayName };
       })
     );

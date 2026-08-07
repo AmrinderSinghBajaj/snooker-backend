@@ -109,7 +109,7 @@ export default function EditBillingModal({ record, onClose, onSaved }) {
 
   const handleSave = async () => {
     setError('');
-    const names = playerNamesText.split(',').map((n) => n.trim()).filter(Boolean);
+    const names = playerNamesText.split(',').map((n) => n.trim().slice(0, 25)).filter(Boolean);
     if (names.length === 0) {
       setError(t('enterAtLeastOnePlayer'));
       return;

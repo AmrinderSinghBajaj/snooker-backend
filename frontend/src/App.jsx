@@ -18,6 +18,7 @@ import AdvancePayments from './pages/AdvancePayments';
 import EmployeeManagement from './pages/EmployeeManagement';
 import PendingPayments from './pages/PendingPayments';
 import Memberships from './pages/Memberships';
+import Expenses from './pages/Expenses';
 
 function SplashGuard({ children }) {
   const introDone = secureSessionStorage.getItem('intro_done');
@@ -54,6 +55,7 @@ export default function App() {
               <Route path="/advance-payments" element={<AdvancePayments />} />
               <Route path="/revenue" element={<Revenue />} />
               <Route path="/memberships" element={<Memberships />} />
+              <Route path="/expenses" element={<Expenses />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/employee-management" element={<EmployeeManagement />} />
             </Route>

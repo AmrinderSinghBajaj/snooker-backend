@@ -4,10 +4,14 @@ import * as THREE from 'three';
 export default function Table3DModel({ category, isActive, isPaused }) {
   const mountRef = useRef(null);
   const hoverRef = useRef(false);
+  const isActiveRef = useRef(isActive);
+  const isPausedRef = useRef(isPaused);
   const [hovered, setHovered] = useState(false);
   const [ready, setReady] = useState(false);
 
   useEffect(() => { hoverRef.current = hovered; }, [hovered]);
+  useEffect(() => { isActiveRef.current = isActive; }, [isActive]);
+  useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
 
   useEffect(() => {
     const delay = Math.random() * 150 + 100; // staggered delay between 100ms and 250ms
@@ -675,7 +679,10 @@ export default function Table3DModel({ category, isActive, isPaused }) {
       raf = requestAnimationFrame(animate);
       const t = clock.getElapsedTime();
 
-      const speed = hoverRef.current ? 0.028 : isActive ? 0.016 : isPaused ? 0.004 : 0.007;
+      const act = isActiveRef.current;
+      const psd = isPausedRef.current;
+
+      const speed = hoverRef.current ? 0.028 : act ? 0.016 : psd ? 0.004 : 0.007;
       root.rotation.y += speed;
       root.position.y = Math.sin(t * 1.5) * 0.05;
 
@@ -684,8 +691,16 @@ export default function Table3DModel({ category, isActive, isPaused }) {
         psCtrl.rotation.x = -0.2 + Math.sin(t * 1.7) * 0.07;
       }
 
-      if (isActive) lamp.intensity = 2.8 + Math.sin(t * 6) * 0.7;
-      else if (isPaused) lamp.intensity = 1.8 + Math.sin(t * 2) * 0.4;
+      if (act) {
+        lamp.color.setHex(0x2ff080);
+        lamp.intensity = 2.8 + Math.sin(t * 6) * 0.7;
+      } else if (psd) {
+        lamp.color.setHex(0xffc040);
+        lamp.intensity = 1.8 + Math.sin(t * 2) * 0.4;
+      } else {
+        lamp.color.setHex(0xffffff);
+        lamp.intensity = 0.6;
+      }
 
       renderer.render(scene, camera);
     };
@@ -718,7 +733,7 @@ export default function Table3DModel({ category, isActive, isPaused }) {
       envTexture.dispose();
       renderer.dispose();
     };
-  }, [category, isActive, isPaused, ready]);
+  }, [category, ready]);
 
   return (
     <div

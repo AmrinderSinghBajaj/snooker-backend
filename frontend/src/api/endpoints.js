@@ -16,6 +16,7 @@ export const assetsApi = {
     api.post(`/assets/${assetId}/start`, { player_names: playerNames, start_time: startTimeIso }),
   pauseGame: (assetId) => api.post(`/assets/${assetId}/pause`),
   resumeGame: (assetId) => api.post(`/assets/${assetId}/resume`),
+  cancelGame: (assetId) => api.post(`/assets/${assetId}/cancel`),
   updatePlayers: (sessionId, playerNames) =>
     api.put(`/assets/active-sessions/${sessionId}/players`, { player_names: playerNames }),
 };
@@ -99,3 +100,11 @@ export const membershipsApi = {
   deleteSlab: (id) => api.delete(`/memberships/slabs/${id}`),
   assign: (customerId, membershipSlabId) => api.post('/memberships/assign', { customerId, membershipSlabId }),
 };
+
+export const expensesApi = {
+  list: (params) => api.get('/expenses', { params }),
+  summary: () => api.get('/expenses/summary'),
+  create: (data) => api.post('/expenses', data),
+  remove: (id) => api.delete(`/expenses/${id}`),
+};
+

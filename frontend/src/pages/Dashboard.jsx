@@ -7,6 +7,7 @@ import Card from '../components/Card';
 import LiveTimer from '../components/LiveTimer';
 import CheckoutModal from '../components/CheckoutModal';
 import EditPlayersModal from '../components/EditPlayersModal';
+import StartGameModal from '../components/StartGameModal';
 import Table3DModel from '../components/Table3DModel';
 import { getCategoryConfig } from '../utils/categoryAssets';
 import { useTranslation } from '../utils/translations';
@@ -57,8 +58,10 @@ export default function Dashboard() {
   const [activeSessions, setActiveSessions] = useState(cachedActiveSessions || []);
   const [loading, setLoading] = useState(!cachedAssets);
   const [startModalAsset, setStartModalAsset] = useState(null);
+  const [pastTimeModalAsset, setPastTimeModalAsset] = useState(null);
   const [checkoutSession, setCheckoutSession] = useState(null);
   const [editPlayersSession, setEditPlayersSession] = useState(null);
+  const [pendingAssetIds, setPendingAssetIds] = useState(new Set());
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
@@ -90,51 +93,106 @@ export default function Dashboard() {
   const sessionForAsset = (assetId) =>
     activeSessions.find((s) => s.asset_id === assetId);
 
+  // Surgically update a single session in state — avoids full dashboard refresh
+  const updateSessionInState = (updatedSession) => {
+    setActiveSessions(prev =>
+      prev.map(s => s.session_id === updatedSession.session_id ? updatedSession : s)
+    );
+    cachedActiveSessions = null; // invalidate cache
+  };
+
+  const addSessionToState = (newSession) => {
+    setActiveSessions(prev => [...prev, newSession]);
+    cachedActiveSessions = null;
+  };
+
+  const removeSessionFromState = (sessionId) => {
+    setActiveSessions(prev => prev.filter(s => s.session_id !== sessionId));
+    cachedActiveSessions = null;
+  };
+
   const handleStartInstantly = async (asset) => {
+    if (pendingAssetIds.has(asset.id)) return;
+    setPendingAssetIds(prev => new Set(prev).add(asset.id));
     try {
-      await assetsApi.startGame(asset.id, []);
-      loadAll(true);
+      const res = await assetsApi.startGame(asset.id, []);
+      if (res.data?.session_id) {
+        addSessionToState(res.data);
+      } else {
+        loadAll(true);
+      }
     } catch {
       setError(t('couldNotStartGame') || 'Could not start game.');
+    } finally {
+      setPendingAssetIds(prev => {
+        const copy = new Set(prev);
+        copy.delete(asset.id);
+        return copy;
+      });
     }
   };
 
-  const handleStartPastTime = async (asset, timeVal) => {
+  const handleStartPastTimeModal = async (asset, playerNames, startTimeIso) => {
+    if (pendingAssetIds.has(asset.id)) return;
+    setPendingAssetIds(prev => new Set(prev).add(asset.id));
     try {
-      const [hours, minutes] = timeVal.split(':').map(Number);
-      const startDate = new Date();
-      startDate.setHours(hours, minutes, 0, 0);
-
-      const now = new Date();
-      const diffMs = startDate.getTime() - now.getTime();
-      if (diffMs > 30 * 60 * 1000) {
-        startDate.setDate(startDate.getDate() - 1);
-      } else if (diffMs > 0) {
-        startDate.setTime(now.getTime());
+      const res = await assetsApi.startGame(asset.id, playerNames, startTimeIso);
+      if (res.data?.session_id) {
+        addSessionToState(res.data);
+      } else {
+        loadAll(true);
       }
-      
-      await assetsApi.startGame(asset.id, [], startDate.toISOString());
-      loadAll(true);
+      setPastTimeModalAsset(null);
     } catch {
       setError(t('couldNotStartGame') || 'Could not start game in the past.');
+    } finally {
+      setPendingAssetIds(prev => {
+        const copy = new Set(prev);
+        copy.delete(asset.id);
+        return copy;
+      });
     }
   };
 
-  const handleCheckoutCompleted = () => {
+  const handleCheckoutCompleted = (sessionId) => {
     setCheckoutSession(null);
-    loadAll(true);
+    if (sessionId) {
+      removeSessionFromState(sessionId);
+    } else {
+      loadAll(true);
+    }
   };
 
   const handlePauseResume = async (assetId, session, isPaused) => {
+    if (pendingAssetIds.has(assetId)) return;
+    setPendingAssetIds(prev => new Set(prev).add(assetId));
     try {
-      if (isPaused) {
-        await assetsApi.resumeGame(assetId);
+      const res = isPaused
+        ? await assetsApi.resumeGame(assetId)
+        : await assetsApi.pauseGame(assetId);
+      if (res.data?.session) {
+        updateSessionInState(res.data.session);
       } else {
-        await assetsApi.pauseGame(assetId);
+        loadAll(true);
       }
-      await loadAll(true);
     } catch {
       setError(t('couldNotUpdateStatus'));
+    } finally {
+      setPendingAssetIds(prev => {
+        const copy = new Set(prev);
+        copy.delete(assetId);
+        return copy;
+      });
+    }
+  };
+
+  const handleCancelGame = async (assetId, sessionId) => {
+    if (!window.confirm('Cancel this session? No bill will be created — use only for accidental starts.')) return;
+    try {
+      await assetsApi.cancelGame(assetId);
+      removeSessionFromState(sessionId);
+    } catch {
+      setError('Could not cancel session.');
     }
   };
 
@@ -290,13 +348,12 @@ export default function Dashboard() {
                       </span>
                       {canEditTables && (
                         <button
-                          style={styles.editPlayersBtn}
-                          onClick={() => setEditPlayersSession(session)}
-                          title="Edit players mid-game"
-                          aria-label="Edit players mid-game"
-                          className="edit-players-midgame-btn"
+                          style={styles.resetBtn}
+                          onClick={() => handleCancelGame(asset.id, session.session_id)}
+                          title="Cancel session — no bill (accidental start only)"
+                          aria-label="Cancel session"
                         >
-                          <EditIconMini />
+                          <ResetIconMini />
                         </button>
                       )}
                     </div>
@@ -322,34 +379,14 @@ export default function Dashboard() {
                         <button
                           style={{
                             ...styles.clockBtn,
-                            position: 'relative',
                             ...(!canEditTables ? styles.disabledBtn : {})
                           }}
                           disabled={!canEditTables}
+                          onClick={() => setPastTimeModalAsset(asset)}
                           title="Start time in past"
                           aria-label="Start time in past"
                         >
                           🕒
-                          <input
-                            type="time"
-                            style={{
-                              position: 'absolute',
-                              top: 0,
-                              left: 0,
-                              width: '100%',
-                              height: '100%',
-                              opacity: 0,
-                              cursor: 'pointer',
-                              border: 'none',
-                              outline: 'none',
-                            }}
-                            onChange={(e) => {
-                              const timeVal = e.target.value;
-                              if (timeVal) {
-                                handleStartPastTime(asset, timeVal);
-                              }
-                            }}
-                          />
                         </button>
                       </div>
                     ) : (
@@ -392,7 +429,7 @@ export default function Dashboard() {
         <CheckoutModal
           session={checkoutSession}
           onClose={() => setCheckoutSession(null)}
-          onCompleted={handleCheckoutCompleted}
+          onCompleted={(sessionId) => handleCheckoutCompleted(sessionId)}
         />
       )}
 
@@ -400,10 +437,25 @@ export default function Dashboard() {
         <EditPlayersModal
           session={editPlayersSession}
           onClose={() => setEditPlayersSession(null)}
-          onUpdated={() => {
+          onUpdated={(updatedSession) => {
             setEditPlayersSession(null);
-            loadAll(true);
+            if (updatedSession?.session_id) {
+              updateSessionInState(updatedSession);
+            } else {
+              loadAll(true); // fallback
+            }
           }}
+        />
+      )}
+
+      {pastTimeModalAsset && (
+        <StartGameModal
+          asset={pastTimeModalAsset}
+          hidePlayers={true}
+          onClose={() => setPastTimeModalAsset(null)}
+          onStarted={(playerNames, startTimeIso) =>
+            handleStartPastTimeModal(pastTimeModalAsset, playerNames, startTimeIso)
+          }
         />
       )}
     </div>
@@ -628,6 +680,18 @@ const styles = {
     justifyContent: 'space-between',
     minHeight: 20,
   },
+  resetBtn: {
+    background: 'rgba(139, 38, 53, 0.18)',
+    border: '1px solid rgba(139, 38, 53, 0.4)',
+    color: '#e07080',
+    cursor: 'pointer',
+    padding: '5px 9px',
+    borderRadius: 6,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'all 0.15s ease',
+  },
   editPlayersBtn: {
     background: 'transparent',
     border: 'none',
@@ -659,6 +723,14 @@ function EditIconMini() {
   return (
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ opacity: 0.7 }}>
       <path d="M16.5 3.5 20 7l-12 12H4v-4l12.5-11.5Z" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ResetIconMini() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ opacity: 0.9 }}>
+      <path d="M18 6 6 18M6 6l12 12" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" />
     </svg>
   );
 }

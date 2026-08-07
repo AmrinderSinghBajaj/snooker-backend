@@ -18,7 +18,7 @@ export default function EditPlayersModal({ session, onClose, onUpdated }) {
 
   const updateName = (i, value) => {
     const copy = [...names];
-    copy[i] = value;
+    copy[i] = value.slice(0, 25);
     setNames(copy);
   };
 
@@ -40,8 +40,8 @@ export default function EditPlayersModal({ session, onClose, onUpdated }) {
     setSubmitting(true);
     setError('');
     try {
-      await assetsApi.updatePlayers(session.session_id, cleaned);
-      onUpdated();
+      const res = await assetsApi.updatePlayers(session.session_id, cleaned);
+      onUpdated(res.data);
     } catch (err) {
       setError(err.response?.data?.detail || t('couldNotUpdatePlayers'));
     } finally {
@@ -60,6 +60,7 @@ export default function EditPlayersModal({ session, onClose, onUpdated }) {
               placeholder={`${t('playerPlaceholder')} ${i + 1}`}
               value={name}
               onChange={(e) => updateName(i, e.target.value)}
+              maxLength={25}
               autoFocus={i === 0}
               list="customer-suggestions"
             />

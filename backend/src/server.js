@@ -15,6 +15,7 @@ import brandingRouter  from './routes/branding.js';
 import superadminRouter from './routes/superadmin.js';
 import staffRouter      from './routes/staff.js';
 import membershipsRouter from './routes/memberships.js';
+import expensesRouter    from './routes/expenses.js';
 import Club            from './models/Club.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -87,6 +88,7 @@ app.use('/branding',  brandingRouter);
 app.use('/superadmin', superadminRouter);
 app.use('/staff',      staffRouter);
 app.use('/memberships', membershipsRouter);
+app.use('/expenses',    expensesRouter);
 
 // ── Health check ─────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => res.json({ status: 'ok', service: 'billiards-arena-api' }));

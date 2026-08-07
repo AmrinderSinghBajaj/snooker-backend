@@ -310,7 +310,16 @@ export default function Memberships() {
                   max={100}
                   placeholder="e.g. 10"
                   value={slabDiscount}
-                  onChange={(e) => setSlabDiscount(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val !== '' && Number(val) < 0) return;
+                    setSlabDiscount(val);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === '-' || e.key === 'e' || e.key === 'E') {
+                      e.preventDefault();
+                    }
+                  }}
                   style={styles.input}
                 />
               </div>

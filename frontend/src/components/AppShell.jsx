@@ -23,6 +23,7 @@ const NAV_ITEMS = [
   { to: '/advance-payments', key: 'advancePayments', label: 'Advance Payment Customers' },
   { to: '/revenue', key: 'revenue', label: 'Revenue Section' },
   { to: '/memberships', key: 'memberships', label: 'Membership Section' },
+  { to: '/expenses', key: 'expenses', label: 'Club Expenses Management' },
   { to: '/employee-management', key: 'employeeManagement', label: 'Employee Management' },
   { to: '/settings', key: 'settings', label: 'Setting Section' },
 ];
@@ -53,6 +54,7 @@ export default function AppShell() {
       advancePayments: 'advancePay',
       revenue: 'revenue',
       memberships: 'revenue',
+      expenses: 'revenue',
       settings: 'settings',
     };
 

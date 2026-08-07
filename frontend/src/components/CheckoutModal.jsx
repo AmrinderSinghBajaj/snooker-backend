@@ -39,7 +39,11 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
   const getRecalculatedPlayer = (p, rawAmountString) => {
     const share = Number(rawAmountString) || 0;
     let discType = p.discountType || 'none';
-    let discVal = p.discountValue !== undefined && p.discountValue !== '' ? Number(p.discountValue) : 0;
+    let rawVal = p.discountValue !== undefined && p.discountValue !== '' ? Number(p.discountValue) : 0;
+    let discVal = Math.max(0, rawVal);
+    if (discType === 'percentage') {
+      discVal = Math.min(100, discVal);
+    }
     let discAmt = 0;
 
     let slabText = '';
@@ -129,7 +133,20 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
 
   const updatePlayerField = (idx, field, value) => {
     const copy = [...players];
-    copy[idx][field] = value;
+    let val = value;
+    if (field === 'name') {
+      val = value.slice(0, 25);
+    } else if (field === 'discountValue') {
+      if (value !== '') {
+        const num = Number(value);
+        if (isNaN(num) || num < 0) {
+          val = '0';
+        } else if (copy[idx].discountType === 'percentage' && num > 100) {
+          val = '100';
+        }
+      }
+    }
+    copy[idx][field] = val;
     copy[idx] = getRecalculatedPlayer(copy[idx], copy[idx].amount);
     
     if (field === 'name') {
@@ -214,7 +231,7 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
       }
 
       await billingApi.done(session.session_id, cleanedPlayers);
-      onCompleted();
+      onCompleted(session.session_id);
     } catch (err) {
       setError(err.response?.data?.detail || 'Could not finalize checkout.');
     } finally {
@@ -226,7 +243,7 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
     setBusy(true);
     try {
       await billingApi.markPaid(session.session_id, checkoutPaymentMethod);
-      onCompleted();
+      onCompleted(session.session_id);
     } catch (err) {
       setError(err.response?.data?.detail || 'Could not mark as paid.');
     } finally {
@@ -247,7 +264,7 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
     }
     try {
       await billingApi.markUnpaid(session.session_id, paid, pending);
-      onCompleted();
+      onCompleted(session.session_id);
     } catch (err) {
       setError(err.response?.data?.detail || 'Could not record unpaid balance.');
     } finally {
@@ -315,6 +332,7 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
                     placeholder={`Player Name ${idx + 1}`}
                     value={player.name}
                     onChange={(e) => updatePlayerField(idx, 'name', e.target.value)}
+                    maxLength={25}
                     list="checkout-customer-suggestions"
                     autoFocus={idx === players.length - 1 && idx > 0}
                   />
@@ -410,8 +428,19 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
                       <input
                         type="number"
                         placeholder="Val"
+                        min="0"
+                        max={player.discountType === 'percentage' ? "100" : undefined}
                         value={player.discountValue || ''}
-                        onChange={(e) => updatePlayerField(idx, 'discountValue', e.target.value)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val !== '' && Number(val) < 0) return;
+                          updatePlayerField(idx, 'discountValue', val);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === '-' || e.key === 'e' || e.key === 'E') {
+                            e.preventDefault();
+                          }
+                        }}
                         style={{
                           background: 'var(--felt-900)',
                           border: '1px solid var(--felt-600)',
