@@ -45,6 +45,8 @@ export const billingApi = {
   createManualEntry: (payload) => api.post('/billing/manual-entry', payload),
   remove: (sessionId) => api.delete(`/billing/${sessionId}`),
   settleOutstanding: (payload) => api.post('/billing/outstanding/settle', payload),
+  listDeleted: () => api.get('/billing/deleted'),
+  restore: (sessionId) => api.post(`/billing/${sessionId}/restore`),
 };
 
 export const foodApi = {

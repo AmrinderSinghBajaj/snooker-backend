@@ -53,6 +53,10 @@ const gameSessionSchema = new mongoose.Schema({
 
   preStoppedStatus:   { type: String, default: null },
   preStoppedPausedAt: { type: Date, default: null },
+
+  isDeleted: { type: Boolean, default: false, index: true },
+  deletedAt: { type: Date, default: null },
+  deletedBy: { type: String, default: null },
 }, { timestamps: true });
 
 // Enforce unique serial numbers scoped per club

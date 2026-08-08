@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from '../utils/translations';
-import { billingApi, customersApi } from '../api/endpoints';
+import { billingApi, customersApi, membershipsApi } from '../api/endpoints';
 import { useAuth } from '../context/AuthContext';
 import Card from '../components/Card';
 import Modal from '../components/Modal';
@@ -278,6 +278,7 @@ export default function Billing() {
           playerName: playerName,
           amount_received: payload.amount_received,
           payment_method: payload.payment_method,
+          discount_amount: payload.discount_amount || 0,
         };
         if (payload.payment_method === 'split') {
           settlePayload.wallet_amount = payload.wallet_amount;
@@ -1617,8 +1618,21 @@ const styles = {
 
 function PaymentSettlementModal({ prompt, onClose, onConfirm, lang, t }) {
   const [customers, setCustomers] = useState([]);
+  const [slabs, setSlabs] = useState([]);
+  const [appliedDiscount, setAppliedDiscount] = useState(null);
+  const [discountCleared, setDiscountCleared] = useState(false);
+  const [showCustomDiscount, setShowCustomDiscount] = useState(false);
+  const [customDiscType, setCustomDiscType] = useState('percentage');
+  const [customDiscVal, setCustomDiscVal] = useState('');
+
   const [mode, setMode] = useState('single');
   const totalRequired = prompt.amount || 0;
+
+  const netTotalRequired = useMemo(() => {
+    if (!appliedDiscount) return totalRequired;
+    return Math.max(0, Math.round((totalRequired - appliedDiscount.amount) * 100) / 100);
+  }, [totalRequired, appliedDiscount]);
+
   const [amountReceived, setAmountReceived] = useState(String(totalRequired));
   const [walletAmt, setWalletAmt] = useState('');
   const [onlineAmt, setOnlineAmt] = useState('');
@@ -1630,9 +1644,13 @@ function PaymentSettlementModal({ prompt, onClose, onConfirm, lang, t }) {
   const [phoneInput, setPhoneInput] = useState('');
 
   useEffect(() => {
-    customersApi.list()
-      .then((res) => setCustomers(res.data || []))
-      .catch((err) => console.error('Could not load customers', err));
+    Promise.all([
+      customersApi.list().catch(() => ({ data: [] })),
+      membershipsApi.slabs().catch(() => ({ data: [] }))
+    ]).then(([cRes, sRes]) => {
+      setCustomers(cRes.data || []);
+      setSlabs(sRes.data || []);
+    });
   }, []);
 
   const customer = customers.find(c =>
@@ -1640,16 +1658,66 @@ function PaymentSettlementModal({ prompt, onClose, onConfirm, lang, t }) {
   );
   const availableWallet = customer ? (customer.wallet_balance || 0) : 0;
 
+  // Auto-detect & apply membership discount if customer has a membership slab
+  useEffect(() => {
+    if (discountCleared) return;
+    if (customer && customer.membership_slab_id && slabs.length > 0 && totalRequired > 0) {
+      const matchedSlab = slabs.find(
+        (s) => s._id === customer.membership_slab_id || s.id === customer.membership_slab_id
+      );
+      if (matchedSlab && matchedSlab.discountPercentage > 0) {
+        const discAmt = Math.round((totalRequired * (matchedSlab.discountPercentage / 100)) * 100) / 100;
+        setAppliedDiscount({
+          type: 'slab',
+          label: `Membership: ${matchedSlab.name} (-${matchedSlab.discountPercentage}%)`,
+          amount: discAmt,
+          percentage: matchedSlab.discountPercentage,
+        });
+      }
+    }
+  }, [customer, slabs, totalRequired, discountCleared]);
+
+  useEffect(() => {
+    setAmountReceived(String(netTotalRequired));
+  }, [netTotalRequired]);
+
   useEffect(() => {
     if (customer && customer.phone) {
       setPhoneInput(customer.phone);
     }
   }, [customer]);
 
+  const applyCustomDiscount = () => {
+    const rawVal = Number(customDiscVal);
+    if (isNaN(rawVal) || rawVal <= 0) {
+      setModalErr('Please enter a valid discount amount');
+      return;
+    }
+    setModalErr('');
+    let discAmt = 0;
+    let label = '';
+    if (customDiscType === 'percentage') {
+      const pct = Math.min(100, rawVal);
+      discAmt = Math.round((totalRequired * (pct / 100)) * 100) / 100;
+      label = `Discount (-${pct}%)`;
+    } else {
+      discAmt = Math.min(totalRequired, rawVal);
+      label = `Flat Cash Discount (-₹${discAmt})`;
+    }
+
+    setAppliedDiscount({
+      type: customDiscType,
+      label,
+      amount: discAmt,
+      value: rawVal
+    });
+    setShowCustomDiscount(false);
+  };
+
   const handleQuickPay = async (method) => {
     setModalErr('');
     const rec = Number(amountReceived);
-    if (isNaN(rec) || rec <= 0) {
+    if (isNaN(rec) || (rec <= 0 && netTotalRequired > 0)) {
       setModalErr('Please enter a valid amount received.');
       return;
     }
@@ -1667,9 +1735,10 @@ function PaymentSettlementModal({ prompt, onClose, onConfirm, lang, t }) {
     setSubmitting(true);
     try {
       const record = await onConfirm({
-        payment_method: method,
+        payment_method: netTotalRequired === 0 ? 'exempt' : method,
         amount_received: rec,
-        wallet_amount: method === 'wallet' ? Math.min(rec, totalRequired) : 0,
+        wallet_amount: method === 'wallet' ? Math.min(rec, netTotalRequired) : 0,
+        discount_amount: appliedDiscount ? appliedDiscount.amount : 0
       });
       if (record && prompt.type === 'single') {
         setSuccessRecord(record);
@@ -1686,14 +1755,14 @@ function PaymentSettlementModal({ prompt, onClose, onConfirm, lang, t }) {
   const handleConfirmSplit = async () => {
     setModalErr('');
     const rec = Number(amountReceived);
-    if (isNaN(rec) || rec <= 0) {
+    if (isNaN(rec) || (rec <= 0 && netTotalRequired > 0)) {
       setModalErr('Please enter a valid amount received.');
       return;
     }
     const w = Number(walletAmt) || 0;
     const o = Number(onlineAmt) || 0;
     const off = Number(offlineAmt) || 0;
-    const effectivePaid = Math.min(rec, totalRequired);
+    const effectivePaid = Math.min(rec, netTotalRequired);
 
     if (Math.round((w + o + off) * 100) !== Math.round(effectivePaid * 100)) {
       setModalErr(`Entered split amounts sum to ₹${(w + o + off).toFixed(2)}, which must equal paid amount ₹${effectivePaid.toFixed(2)}.`);
@@ -1719,6 +1788,7 @@ function PaymentSettlementModal({ prompt, onClose, onConfirm, lang, t }) {
         wallet_amount: w,
         online_amount: o,
         offline_amount: off,
+        discount_amount: appliedDiscount ? appliedDiscount.amount : 0
       });
       if (record && prompt.type === 'single') {
         setSuccessRecord(record);
@@ -1842,6 +1912,135 @@ function PaymentSettlementModal({ prompt, onClose, onConfirm, lang, t }) {
             )}
           </div>
 
+          {appliedDiscount ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(201, 162, 75, 0.15)', border: '1px solid var(--brass-500)', borderRadius: 'var(--radius-sm)', padding: '8px 12px', fontSize: '0.85rem' }}>
+              <div style={{ color: 'var(--brass-300)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>🏷️ {appliedDiscount.label}: -₹{appliedDiscount.amount.toFixed(2)}</span>
+              </div>
+              <button
+                type="button"
+                title="Remove Discount"
+                onClick={() => {
+                  setAppliedDiscount(null);
+                  setDiscountCleared(true);
+                }}
+                style={{
+                  background: 'rgba(239, 68, 68, 0.2)',
+                  border: '1px solid rgba(239, 68, 68, 0.4)',
+                  color: '#F87171',
+                  borderRadius: '50%',
+                  width: 22,
+                  height: 22,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  marginLeft: 8,
+                  lineHeight: 1
+                }}
+              >
+                ×
+              </button>
+            </div>
+          ) : (
+            <div>
+              {!showCustomDiscount ? (
+                <button
+                  type="button"
+                  onClick={() => setShowCustomDiscount(true)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--brass-300)',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    fontSize: '0.82rem',
+                    padding: 0,
+                    textAlign: 'left'
+                  }}
+                >
+                  + Add Discount
+                </button>
+              ) : (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '6px 8px', background: 'rgba(255,255,255,0.03)', borderRadius: 4 }}>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--chalk-400)' }}>Discount:</span>
+                  <select
+                    value={customDiscType}
+                    onChange={(e) => setCustomDiscType(e.target.value)}
+                    style={{
+                      background: 'var(--felt-800)',
+                      border: '1px solid var(--felt-600)',
+                      borderRadius: 'var(--radius-sm)',
+                      color: 'var(--chalk-100)',
+                      padding: '4px 6px',
+                      fontSize: '0.78rem',
+                      outline: 'none'
+                    }}
+                  >
+                    <option value="percentage">% Percentage</option>
+                    <option value="amount">₹ Flat Cash</option>
+                  </select>
+                  <input
+                    type="number"
+                    placeholder="Val"
+                    min="0"
+                    max={customDiscType === 'percentage' ? "100" : undefined}
+                    value={customDiscVal}
+                    onChange={(e) => setCustomDiscVal(e.target.value)}
+                    style={{
+                      background: 'var(--felt-800)',
+                      border: '1px solid var(--felt-600)',
+                      borderRadius: 'var(--radius-sm)',
+                      color: 'var(--chalk-100)',
+                      padding: '4px 6px',
+                      fontSize: '0.78rem',
+                      width: 65,
+                      outline: 'none'
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={applyCustomDiscount}
+                    style={{
+                      background: 'var(--brass-500)',
+                      color: 'var(--ink-900)',
+                      border: 'none',
+                      borderRadius: 'var(--radius-sm)',
+                      padding: '4px 10px',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Apply
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowCustomDiscount(false)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--chalk-400)',
+                      fontSize: '0.9rem',
+                      cursor: 'pointer',
+                      marginLeft: 4
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {appliedDiscount && (
+            <div style={{ fontSize: '0.9rem', color: 'var(--chalk-100)', fontWeight: 700 }}>
+              Net Payable: <span style={{ color: 'var(--brass-300)', fontSize: '1.05rem' }}>₹{netTotalRequired.toFixed(2)}</span>
+            </div>
+          )}
+
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <span style={{ fontSize: '0.78rem', color: 'var(--chalk-400)', fontWeight: 600 }}>
               Amount Received from Customer (₹)
@@ -1869,7 +2068,7 @@ function PaymentSettlementModal({ prompt, onClose, onConfirm, lang, t }) {
 
           {(() => {
             const rec = Number(amountReceived) || 0;
-            const diff = Math.round((rec - totalRequired) * 100) / 100;
+            const diff = Math.round((rec - netTotalRequired) * 100) / 100;
             if (rec > 0 && diff > 0) {
               return (
                 <div style={{ background: 'rgba(201, 162, 75, 0.18)', border: '1px solid var(--brass-500)', borderRadius: 'var(--radius-sm)', padding: '8px 12px', fontSize: '0.82rem', color: 'var(--brass-300)', fontWeight: 600 }}>
@@ -1979,13 +2178,13 @@ function PaymentSettlementModal({ prompt, onClose, onConfirm, lang, t }) {
                 onClick={() => {
                   setMode(mode === 'split' ? 'single' : 'split');
                   if (availableWallet > 0) {
-                    const w = Math.min(availableWallet, totalRequired);
+                    const w = Math.min(availableWallet, netTotalRequired);
                     setWalletAmt(String(w));
-                    setOnlineAmt(String(Math.round((totalRequired - w) * 100) / 100));
+                    setOnlineAmt(String(Math.round((netTotalRequired - w) * 100) / 100));
                     setOfflineAmt('0');
                   } else {
                     setWalletAmt('0');
-                    setOnlineAmt(String(totalRequired));
+                    setOnlineAmt(String(netTotalRequired));
                     setOfflineAmt('0');
                   }
                 }}

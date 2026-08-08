@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useBranding } from '../context/BrandingContext';
 import { useTranslation } from '../utils/translations';
-import { brandingApi } from '../api/endpoints';
+import { brandingApi, billingApi } from '../api/endpoints';
 import Card from '../components/Card';
 
 const PRESETS = [
@@ -24,6 +24,43 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
+
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [deletedRecords, setDeletedRecords] = useState([]);
+  const [loadingDeleted, setLoadingDeleted] = useState(false);
+  const [restoringId, setRestoringId] = useState(null);
+
+  const loadDeletedRecords = async () => {
+    setLoadingDeleted(true);
+    try {
+      const res = await billingApi.listDeleted();
+      setDeletedRecords(res.data || []);
+    } catch (err) {
+      console.error('Failed to fetch deleted billing records', err);
+    } finally {
+      setLoadingDeleted(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showDeleted) {
+      loadDeletedRecords();
+    }
+  }, [showDeleted]);
+
+  const handleRestoreRecord = async (id) => {
+    setRestoringId(id);
+    try {
+      await billingApi.restore(id);
+      setToast(t('restoredSuccess') || 'Billing record restored successfully!');
+      loadDeletedRecords();
+    } catch (err) {
+      console.error('Failed to restore billing record', err);
+      setError(err.response?.data?.detail || 'Could not restore record');
+    } finally {
+      setRestoringId(null);
+    }
+  };
 
   // Sync state if branding loads late
   useEffect(() => {
@@ -162,6 +199,107 @@ export default function Settings() {
                   <option value="hi">{t('hindi')}</option>
                   <option value="pb">{t('punjabi')}</option>
                 </select>
+              </div>
+
+              {/* Deleted Billing Records Section */}
+              <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--felt-600)' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowDeleted(!showDeleted)}
+                  style={{
+                    width: '100%',
+                    background: 'rgba(239, 68, 68, 0.08)',
+                    border: '1px solid rgba(239, 68, 68, 0.25)',
+                    color: '#F87171',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '12px 14px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    fontWeight: 600,
+                    fontSize: '0.9rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    🗑️ {t('deletedBillingSection') || 'Deleted Billing records'}
+                    {deletedRecords.length > 0 && (
+                      <span style={{
+                        background: '#EF4444',
+                        color: '#fff',
+                        borderRadius: 999,
+                        padding: '1px 7px',
+                        fontSize: '0.75rem',
+                        fontWeight: 700
+                      }}>
+                        {deletedRecords.length}
+                      </span>
+                    )}
+                  </span>
+                  <span>{showDeleted ? '▲' : '▼'}</span>
+                </button>
+
+                {showDeleted && (
+                  <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {loadingDeleted ? (
+                      <p style={{ color: 'var(--chalk-400)', fontSize: '0.85rem', margin: '8px 0' }}>Loading deleted records...</p>
+                    ) : deletedRecords.length === 0 ? (
+                      <p style={{ color: 'var(--chalk-400)', fontSize: '0.85rem', margin: '8px 0' }}>
+                        {t('noDeletedBillingRecords') || 'No deleted billing records found.'}
+                      </p>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 360, overflowY: 'auto', paddingRight: 4 }}>
+                        {deletedRecords.map((r) => (
+                          <div key={r.session_id} style={{
+                            background: 'var(--felt-800)',
+                            border: '1px solid var(--felt-600)',
+                            borderRadius: 'var(--radius-sm)',
+                            padding: '12px 14px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 6
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontWeight: 700, color: 'var(--chalk-100)', fontSize: '0.9rem' }}>
+                                #{r.serial_number} — {r.player_names ? r.player_names.join(', ') : 'Customer'}
+                              </span>
+                              <span style={{ fontSize: '0.82rem', color: 'var(--brass-300)', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                                Subtotal: ₹{(r.subtotal_amount || r.total_amount).toFixed(2)}
+                              </span>
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', color: 'var(--chalk-400)' }}>
+                              <span>Table/Device: <strong>{r.asset_label}</strong></span>
+                              <span>Billed Total: <strong style={{ color: 'var(--chalk-200)' }}>₹{r.total_amount.toFixed(2)}</strong></span>
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.76rem', color: 'var(--chalk-400)', borderTop: '1px dashed var(--felt-600)', paddingTop: 6, marginTop: 2 }}>
+                              <span>Deleted: {r.deleted_at ? new Date(r.deleted_at).toLocaleString() : 'N/A'} ({r.deleted_by || 'Admin'})</span>
+                              <button
+                                type="button"
+                                onClick={() => handleRestoreRecord(r.session_id)}
+                                disabled={restoringId === r.session_id}
+                                style={{
+                                  background: 'rgba(34, 197, 94, 0.15)',
+                                  border: '1px solid rgba(34, 197, 94, 0.4)',
+                                  color: '#4ADE80',
+                                  borderRadius: 'var(--radius-sm)',
+                                  padding: '3px 8px',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 600,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                {restoringId === r.session_id ? 'Restoring...' : `↺ ${t('restoreRecord') || 'Restore'}`}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </Card>
 

@@ -147,17 +147,18 @@ router.post('/assign', requireAuth, requirePermission('foodDrink', 'edit'), asyn
         return res.status(400).json({ detail: 'Can only assign food to an active or paused session' });
       }
 
-      // Try to find the customerId from the active session players
-      const playerObj = activeSession.players.find(p => p.displayName === ordered_by);
-      if (playerObj) {
-        resolvedPayerCids = [{
-          customerId: playerObj.customerId,
-          displayName: playerObj.displayName,
-          isPayer: true,
-          shareAmount: addedTotal
-        }];
-        payerName = playerObj.displayName;
+      activeSession.foodOrders.push(...foodOrders);
+      activeSession.foodAmount = Math.round(((activeSession.foodAmount || 0) + addedTotal) * 100) / 100;
+      if (activeSession.totalAmount !== null && activeSession.totalAmount !== undefined) {
+        activeSession.totalAmount = Math.round(((activeSession.totalAmount || 0) + addedTotal) * 100) / 100;
       }
+      await activeSession.save();
+
+      return res.json({
+        order_id:            activeSession._id.toString(),
+        added_total:         Math.round(addedTotal * 100) / 100,
+        session_food_amount: activeSession.foodAmount,
+      });
     }
 
     if (resolvedPayerCids.length === 0) {
@@ -194,7 +195,7 @@ router.post('/assign', requireAuth, requirePermission('foodDrink', 'edit'), asyn
     });
 
     return res.json({
-      order_id:            null,
+      order_id:            session._id.toString(),
       added_total:         Math.round(addedTotal * 100) / 100,
       session_food_amount: addedTotal,
     });

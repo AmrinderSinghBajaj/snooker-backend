@@ -20,7 +20,7 @@ function dayWindow(date) {
 async function sumInWindow(clubId, start, end) {
   const targetId = clubId && clubId._id ? clubId._id : clubId;
   const result = await GameSession.aggregate([
-    { $match: { clubId: targetId, status: 'billed', paidAmount: { $gt: 0 }, finalizedAt: { $gte: start, $lt: end } } },
+    { $match: { clubId: targetId, status: 'billed', isDeleted: { $ne: true }, paidAmount: { $gt: 0 }, finalizedAt: { $gte: start, $lt: end } } },
     { $group: { _id: null, total: { $sum: '$paidAmount' } } },
   ]);
   return result[0]?.total ?? 0;
@@ -30,7 +30,7 @@ async function sumInWindow(clubId, start, end) {
 async function sumDiscountsInWindow(clubId, start, end) {
   const targetId = clubId && clubId._id ? clubId._id : clubId;
   const result = await GameSession.aggregate([
-    { $match: { clubId: targetId, status: 'billed', finalizedAt: { $gte: start, $lt: end } } },
+    { $match: { clubId: targetId, status: 'billed', isDeleted: { $ne: true }, finalizedAt: { $gte: start, $lt: end } } },
     { $unwind: '$players' },
     { $group: { _id: null, total: { $sum: '$players.discountAmount' } } }
   ]);
@@ -43,6 +43,7 @@ async function sessionsInWindow(clubId, start, end) {
   return GameSession.find({
     clubId: targetId,
     status: 'billed',
+    isDeleted: { $ne: true },
     paidAmount: { $gt: 0 },
     finalizedAt: { $gte: start, $lt: end },
   }).sort({ finalizedAt: 1 });

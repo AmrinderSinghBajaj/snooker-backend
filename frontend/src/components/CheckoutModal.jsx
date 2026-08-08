@@ -14,9 +14,8 @@ import { billingApi, customersApi, membershipsApi } from '../api/endpoints';
 export default function CheckoutModal({ session, onClose, onCompleted }) {
   const [step, setStep] = useState('stop'); // stop -> review -> done
   const [stopResult, setStopResult] = useState(null);
-  const [players, setPlayers] = useState([{ name: '', amount: '', discountType: 'none', discountValue: '', discountAmount: 0, netAmount: 0 }]);
+  const [players, setPlayers] = useState([{ name: '', amount: '' }]);
   const [customers, setCustomers] = useState([]);
-  const [slabs, setSlabs] = useState([]);
   const [detail, setDetail] = useState(null);
   const [showDetail, setShowDetail] = useState(false);
   const [paymentChoice, setPaymentChoice] = useState(null); // 'paid' | 'unpaid'
@@ -30,79 +29,7 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
     customersApi.list()
       .then((res) => setCustomers(res.data))
       .catch((err) => console.error('Could not load customers', err));
-
-    membershipsApi.slabs()
-      .then((res) => setSlabs(res.data))
-      .catch((err) => console.error('Could not load slabs', err));
   }, []);
-
-  const getRecalculatedPlayer = (p, rawAmountString) => {
-    const share = Number(rawAmountString) || 0;
-    let discType = p.discountType || 'none';
-    let rawVal = p.discountValue !== undefined && p.discountValue !== '' ? Number(p.discountValue) : 0;
-    let discVal = Math.max(0, rawVal);
-    if (discType === 'percentage') {
-      discVal = Math.min(100, discVal);
-    }
-    let discAmt = 0;
-
-    let slabText = '';
-    let slab = null;
-    
-    if (p.name) {
-      const matchedCust = customers.find(
-        (c) => (c.display_name || '').toLowerCase().trim() === p.name.toLowerCase().trim()
-      );
-      if (matchedCust && matchedCust.membership_slab_id) {
-        const matchedSlab = slabs.find(
-          (s) => s._id === matchedCust.membership_slab_id || s.id === matchedCust.membership_slab_id
-        );
-        if (matchedSlab) {
-          slab = matchedSlab;
-          slabText = `⭐ ${slab.name} (-${slab.discountPercentage}% ${
-            slab.appliesTo === 'both' ? 'Total' : slab.appliesTo
-          })`;
-        }
-      }
-    }
-
-    if (discType === 'percentage') {
-      discAmt = share * (discVal / 100);
-    } else if (discType === 'amount') {
-      discAmt = discVal;
-    } else if (discType === 'none' && slab) {
-      const totalBill = stopResult?.total_amount || 1;
-      const timeBill = stopResult?.time_amount || 0;
-      const foodBill = stopResult?.food_amount || 0;
-      
-      if (slab.appliesTo === 'both') {
-        discAmt = share * (slab.discountPercentage / 100);
-      } else if (slab.appliesTo === 'table') {
-        const timeShare = share * (timeBill / totalBill);
-        discAmt = timeShare * (slab.discountPercentage / 100);
-      } else if (slab.appliesTo === 'food') {
-        const foodShare = share * (foodBill / totalBill);
-        discAmt = foodShare * (slab.discountPercentage / 100);
-      }
-      
-      discType = 'percentage';
-      discVal = slab.discountPercentage;
-    }
-
-    const finalDiscAmt = Math.min(share, Math.max(0, Math.round(discAmt * 100) / 100));
-    const netAmount = Math.max(0, Math.round((share - finalDiscAmt) * 100) / 100);
-
-    return {
-      ...p,
-      amount: rawAmountString,
-      discountType: discType,
-      discountValue: p.discountValue,
-      discountAmount: finalDiscAmt,
-      netAmount,
-      slabText,
-      hasSlab: !!slab
-    };
-  };
 
   const autoSplitEqually = (currentPlayers, total) => {
     const M = currentPlayers.length;
@@ -115,14 +42,14 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
         amtVal = Math.max(0, Math.round((total - sum) * 100) / 100);
       }
       sum += share;
-      return getRecalculatedPlayer(p, amtVal.toString());
+      return { ...p, amount: amtVal.toString() };
     });
     return updated;
   };
 
   const addPlayerRow = () => {
     if (players.length >= 6) return;
-    const newPlayers = [...players, { name: '', amount: '', discountType: 'none', discountValue: '', discountAmount: 0, netAmount: 0 }];
+    const newPlayers = [...players, { name: '', amount: '' }];
     setPlayers(autoSplitEqually(newPlayers, stopResult.total_amount));
   };
 
@@ -136,32 +63,8 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
     let val = value;
     if (field === 'name') {
       val = value.slice(0, 25);
-    } else if (field === 'discountValue') {
-      if (value !== '') {
-        const num = Number(value);
-        if (isNaN(num) || num < 0) {
-          val = '0';
-        } else if (copy[idx].discountType === 'percentage' && num > 100) {
-          val = '100';
-        }
-      }
     }
     copy[idx][field] = val;
-    copy[idx] = getRecalculatedPlayer(copy[idx], copy[idx].amount);
-    
-    if (field === 'name') {
-      copy[idx] = getRecalculatedPlayer({
-        ...copy[idx],
-        discountType: 'none',
-        discountValue: ''
-      }, copy[idx].amount);
-    }
-    setPlayers(copy);
-  };
-
-  const toggleDiscountRow = (idx) => {
-    const copy = [...players];
-    copy[idx].showDiscount = !copy[idx].showDiscount;
     setPlayers(copy);
   };
 
@@ -217,10 +120,10 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
       const cleanedPlayers = players.map((p, pidx) => ({
         name: p.name.trim() || `Player ${pidx + 1}`,
         amount: Number(p.amount) || 0,
-        discountType: p.discountType || 'none',
-        discountValue: Number(p.discountValue) || 0,
-        discountAmount: p.discountAmount || 0,
-        netAmount: p.netAmount || 0
+        discountType: 'none',
+        discountValue: 0,
+        discountAmount: 0,
+        netAmount: Number(p.amount) || 0
       }));
 
       const totalAllocated = cleanedPlayers.reduce((acc, p) => acc + p.amount, 0);
@@ -350,128 +253,9 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
                   {players.length > 1 && (
                     <button type="button" onClick={() => removePlayerRow(idx)} style={styles.removePlayerBtn}>
                       ×
-                  </button>
-                  )}
-                </div>
-                
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', marginTop: 4, padding: '0 4px' }}>
-                  {player.discountAmount > 0 ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ color: 'var(--brass-300)', fontWeight: 600 }}>
-                        🏷️ Discount: -₹{player.discountAmount.toFixed(2)}
-                        {player.slabText ? ` (${player.slabText.split('(')[1]?.replace(')', '') || ''})` : ''}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => toggleDiscountRow(idx)}
-                        style={{
-                          background: 'transparent',
-                          border: 'none',
-                          color: 'var(--chalk-400)',
-                          cursor: 'pointer',
-                          fontSize: '0.75rem',
-                          textDecoration: 'underline',
-                          padding: '0 4px',
-                        }}
-                      >
-                        (Edit)
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => toggleDiscountRow(idx)}
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: 'var(--chalk-450)',
-                        cursor: 'pointer',
-                        fontWeight: 500,
-                        fontSize: '0.76rem',
-                        padding: 0,
-                      }}
-                    >
-                      + Add Discount
                     </button>
                   )}
-
-                  {player.discountAmount > 0 && (
-                    <span style={{ color: 'var(--chalk-300)', fontSize: '0.8rem' }}>
-                      Net: <strong style={{ color: 'var(--chalk-100)' }}>₹{player.netAmount.toFixed(2)}</strong>
-                    </span>
-                  )}
                 </div>
-
-                {player.showDiscount && (
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6, padding: '4px 6px', background: 'rgba(255,255,255,0.03)', borderRadius: 4 }}>
-                    <span style={{ fontSize: '0.74rem', color: 'var(--chalk-400)' }}>Discount:</span>
-                    <select
-                      value={player.discountType || 'none'}
-                      onChange={(e) => updatePlayerField(idx, 'discountType', e.target.value)}
-                      style={{
-                        background: 'var(--felt-900)',
-                        border: '1px solid var(--felt-600)',
-                        borderRadius: 'var(--radius-sm)',
-                        color: 'var(--chalk-100)',
-                        padding: '2px 4px',
-                        fontSize: '0.75rem',
-                        outline: 'none',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <option value="none">None</option>
-                      <option value="percentage">% Percentage</option>
-                      <option value="amount">₹ Flat Cash</option>
-                    </select>
-
-                    {player.discountType && player.discountType !== 'none' && (
-                      <input
-                        type="number"
-                        placeholder="Val"
-                        min="0"
-                        max={player.discountType === 'percentage' ? "100" : undefined}
-                        value={player.discountValue || ''}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          if (val !== '' && Number(val) < 0) return;
-                          updatePlayerField(idx, 'discountValue', val);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === '-' || e.key === 'e' || e.key === 'E') {
-                            e.preventDefault();
-                          }
-                        }}
-                        style={{
-                          background: 'var(--felt-900)',
-                          border: '1px solid var(--felt-600)',
-                          borderRadius: 'var(--radius-sm)',
-                          color: 'var(--chalk-100)',
-                          padding: '2px 6px',
-                          fontSize: '0.75rem',
-                          width: 55,
-                          boxSizing: 'border-box'
-                        }}
-                      />
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() => toggleDiscountRow(idx)}
-                      style={{
-                        marginLeft: 'auto',
-                        background: 'var(--felt-600)',
-                        border: 'none',
-                        borderRadius: 'var(--radius-sm)',
-                        color: 'var(--chalk-100)',
-                        padding: '2px 8px',
-                        fontSize: '0.72rem',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Done
-                    </button>
-                  </div>
-                )}
               </div>
             ))}
           </div>

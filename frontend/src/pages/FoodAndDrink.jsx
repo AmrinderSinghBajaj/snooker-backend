@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { foodApi, assetsApi } from '../api/endpoints';
+import { foodApi, assetsApi, customersApi } from '../api/endpoints';
 import Card from '../components/Card';
 import Modal from '../components/Modal';
 import { getFoodEmoji } from '../utils/categoryAssets';
@@ -43,6 +43,7 @@ export default function FoodAndDrink() {
   const canDeleteFood = admin?.role === 'Club Owner' || admin?.role === 'superadmin' || !!admin?.permissions?.foodDrink?.delete;
   const [items, setItems] = useState([]);
   const [activeSessions, setActiveSessions] = useState([]);
+  const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
@@ -66,64 +67,25 @@ export default function FoodAndDrink() {
   const [assignBusy, setAssignBusy] = useState(false);
   const [assignMsg, setAssignMsg] = useState('');
 
-  const [selectedPlayers, setSelectedPlayers] = useState([]);
-  const [isWalkin, setIsWalkin] = useState(false);
-  const [guestName, setGuestName] = useState('');
-  const [targetSessionId, setTargetSessionId] = useState('');
-  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [assignPlayerName, setAssignPlayerName] = useState('');
 
   useEffect(() => {
     if (!showAssignModal) {
-      setSelectedPlayers([]);
-      setIsWalkin(false);
-      setGuestName('');
-      setTargetSessionId('');
-      setDropdownOpen(false);
+      setAssignPlayerName('');
     }
   }, [showAssignModal]);
 
-  const handleTogglePlayer = (playerName, sessionId) => {
-    setIsWalkin(false);
-    if (targetSessionId && targetSessionId !== sessionId) {
-      setTargetSessionId(sessionId);
-      setSelectedPlayers([playerName]);
-    } else {
-      setTargetSessionId(sessionId);
-      setSelectedPlayers(prev => {
-        const next = prev.includes(playerName)
-          ? prev.filter(name => name !== playerName)
-          : [...prev, playerName];
-        if (next.length === 0) setTargetSessionId('');
-        return next;
-      });
-    }
-  };
-
-  const handleToggleWalkin = () => {
-    setIsWalkin(true);
-    setTargetSessionId('');
-    setSelectedPlayers([]);
-    setDropdownOpen(false);
-  };
-
-  const getDropdownLabel = () => {
-    if (isWalkin) {
-      return guestName ? `${lang === 'hi' ? 'वॉक-इन' : lang === 'pb' ? 'ਵਾਕ-ਇਨ' : 'Walk-in'}: ${guestName}` : t('otherWalkinGuest');
-    }
-    if (selectedPlayers.length > 0) {
-      const activeSess = activeSessions.find(s => s.session_id === targetSessionId);
-      const tableLabel = activeSess ? ` (${activeSess.asset_label})` : '';
-      return `${selectedPlayers.join(', ')}${tableLabel}`;
-    }
-    return t('selectPlayerWalkinPlaceholder');
-  };
-
   const load = () => {
     setLoading(true);
-    Promise.all([foodApi.list(), assetsApi.activeSessions()])
-      .then(([itemsRes, sessionsRes]) => {
-        setItems(itemsRes.data);
-        setActiveSessions(sessionsRes.data);
+    Promise.all([
+      foodApi.list(),
+      assetsApi.activeSessions(),
+      customersApi.list().catch(() => ({ data: [] }))
+    ])
+      .then(([itemsRes, sessionsRes, customersRes]) => {
+        setItems(itemsRes.data || []);
+        setActiveSessions(sessionsRes.data || []);
+        setCustomers(customersRes.data || []);
       })
       .catch(() => setError(t('couldNotLoadMenu')))
       .finally(() => setLoading(false));
@@ -247,18 +209,26 @@ export default function FoodAndDrink() {
   const cartTotal = cartLines.reduce((sum, l) => sum + l.item.price * l.qty, 0);
 
   const handleAssign = async () => {
-    if (!isWalkin && selectedPlayers.length === 0) {
-      setAssignMsg(t('selectAtLeastOnePlayer'));
+    const nameToAssign = assignPlayerName.trim();
+    if (!nameToAssign) {
+      setAssignMsg(lang === 'hi' ? 'कृपया खिलाड़ी का नाम दर्ज करें या चुनें' : lang === 'pb' ? 'ਕਿਰਪਾ ਕਰਕੇ ਖਿਡਾਰੀ ਦਾ ਨਾਮ ਦਰਜ ਕਰੋ ਜਾਂ ਚੁਣੋ' : 'Please enter or select a player name');
       return;
     }
     setAssignBusy(true);
     setAssignMsg('');
     try {
       const lines = cartLines.map((l) => ({ food_item_id: l.item.id, quantity: l.qty }));
-      const sessionIdPayload = isWalkin ? 'other' : targetSessionId;
-      const orderedByPayload = isWalkin ? (guestName.trim() || t('walkinGuestDefault')) : selectedPlayers.join(', ');
 
-      await foodApi.assign(sessionIdPayload, lines, orderedByPayload);
+      let sessionIdPayload = 'other';
+      const matchedSession = activeSessions.find((s) =>
+        (s.player_names || []).some((p) => p.toLowerCase().trim() === nameToAssign.toLowerCase()) ||
+        (s.asset_label || '').toLowerCase().trim() === nameToAssign.toLowerCase()
+      );
+      if (matchedSession) {
+        sessionIdPayload = matchedSession.session_id;
+      }
+
+      await foodApi.assign(sessionIdPayload, lines, nameToAssign);
       setCart({});
       secureStorage.removeItem('billiards_food_cart');
       setShowAssignModal(false);
@@ -542,80 +512,23 @@ export default function FoodAndDrink() {
           <div>
             <label style={styles.label}>{t('selectPlayerWalkin')}</label>
 
-            <div style={{ position: 'relative' }}>
-              <button
-                type="button"
-                style={styles.dropdownBtn}
-                onClick={() => setDropdownOpen(!dropdownOpen)}
-              >
-                <span>{getDropdownLabel()}</span>
-                <span style={{ fontSize: '0.75rem', color: 'var(--chalk-400)' }}>▼</span>
-              </button>
+            <input
+              style={styles.input}
+              placeholder="Player Name"
+              value={assignPlayerName}
+              onChange={(e) => setAssignPlayerName(e.target.value.slice(0, 30))}
+              list="food-customer-suggestions"
+              autoFocus
+            />
 
-              {dropdownOpen && (
-                <div style={styles.dropdownPanel}>
-                  {/* Walk-in Option */}
-                  <div
-                    style={styles.dropdownRow}
-                    onClick={handleToggleWalkin}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isWalkin}
-                      readOnly
-                      style={{ pointerEvents: 'none', marginRight: 8 }}
-                    />
-                    <strong>{t('otherWalkinGuest')}</strong>
-                  </div>
-
-                  {/* Playing Players */}
-                  {activeSessions.length > 0 && (
-                    <div style={{ borderTop: '1px solid var(--felt-600)', paddingTop: 4 }}>
-                      {activeSessions.map((s) => (
-                        <div key={s.session_id} style={styles.dropdownGroup}>
-                          <div style={styles.dropdownGroupTitle}>{s.asset_label}</div>
-                          {s.player_names.map((name) => {
-                            const isChecked = selectedPlayers.includes(name) && targetSessionId === s.session_id;
-                            const isDisabled = targetSessionId && targetSessionId !== s.session_id;
-                            return (
-                              <div
-                                key={name}
-                                style={{
-                                  ...styles.dropdownRow,
-                                  ...(isDisabled ? styles.dropdownRowDisabled : {})
-                                }}
-                                onClick={() => !isDisabled && handleTogglePlayer(name, s.session_id)}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  disabled={isDisabled}
-                                  readOnly
-                                  style={{ pointerEvents: 'none', marginRight: 8 }}
-                                />
-                                <span>{name}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {isWalkin && (
-              <div style={{ marginTop: 8 }}>
-                <label style={styles.label}>Guest Name (Optional)</label>
-                <input
-                  style={styles.input}
-                  value={guestName}
-                  onChange={(e) => setGuestName(e.target.value)}
-                  placeholder="e.g. Alice"
-                />
-              </div>
-            )}
+            <datalist id="food-customer-suggestions">
+              {activeSessions.flatMap(s => s.player_names || []).map((pName, idx) => (
+                <option key={`active_${idx}`} value={pName} />
+              ))}
+              {customers.map((c) => (
+                <option key={c.id || c._id} value={c.display_name} />
+              ))}
+            </datalist>
 
             <div style={styles.cartSummary}>
               {cartLines.map((l) => (
@@ -865,7 +778,7 @@ const styles = {
     zIndex: 1000,
     animation: 'slideUp 0.3s ease',
   },
-  dropdownBtn: {
+  selectInput: {
     width: '100%',
     background: 'var(--felt-800)',
     border: '1px solid var(--felt-500)',
@@ -873,12 +786,10 @@ const styles = {
     color: 'var(--chalk-100)',
     padding: '10px 12px',
     fontSize: '0.9rem',
-    textAlign: 'left',
-    cursor: 'pointer',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: 16,
+    outline: 'none',
+    boxSizing: 'border-box',
+    cursor: 'pointer',
   },
   dropdownPanel: {
     position: 'relative',
@@ -899,6 +810,14 @@ const styles = {
     borderBottom: '1px solid var(--felt-600)',
     paddingBottom: 4,
     marginBottom: 4,
+  },
+  dropdownSectionHeader: {
+    fontSize: '0.72rem',
+    color: 'var(--brass-400, #FBBF24)',
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    padding: '8px 12px 4px 12px',
+    letterSpacing: '0.05em',
   },
   dropdownGroupTitle: {
     fontSize: '0.72rem',
