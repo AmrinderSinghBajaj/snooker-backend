@@ -62,6 +62,14 @@ export function serializeBillingRecord(session, assetLabel, hourlyRate = null) {
 
   const discountAmt = session.players.reduce((acc, p) => acc + (p.discountAmount || 0), 0);
 
+  const foodLines = (session.foodOrders || []).map((line) => ({
+    name:       line.name,
+    quantity:   line.quantity,
+    unit_price: line.unitPrice,
+    line_total: Math.round(line.unitPrice * line.quantity * 100) / 100,
+    ordered_by: line.orderedBy || null,
+  }));
+
   return {
     session_id:          session._id.toString(),
     serial_number:       session.serialNumber,
@@ -70,6 +78,8 @@ export function serializeBillingRecord(session, assetLabel, hourlyRate = null) {
     time_amount:         timeAmt,
     hourly_rate:         calculatedRate ?? 0,
     food_amount:         session.foodAmount ?? 0,
+    food_orders:         foodLines,
+    food_lines:          foodLines,
     discount_amount:     discountAmt,
     total_amount:        session.totalAmount ?? 0,
     payment_status:      session.paymentStatus ?? null,

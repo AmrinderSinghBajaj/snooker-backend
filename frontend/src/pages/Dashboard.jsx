@@ -307,18 +307,18 @@ export default function Dashboard() {
                   )}
 
                   {/* Status indicator pill (top-right) */}
-                  <div style={{
-                    ...styles.statusBadge,
-                    background: isActive
-                      ? 'rgba(47,158,99,0.85)'
-                      : isPaused
-                        ? 'rgba(201,162,75,0.85)'
-                        : 'rgba(11, 43, 34, 0.65)',
-                    color: isPaused ? 'var(--ink-900)' : '#fff',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                  }}>
-                    {isActive ? `● ${t('active').toUpperCase()}` : isPaused ? `⏸ ${t('paused').toUpperCase()}` : `○ ${t('idle').toUpperCase()}`}
-                  </div>
+                  {(isActive || isPaused) && (
+                    <div style={{
+                      ...styles.statusBadge,
+                      background: isActive
+                        ? 'rgba(47,158,99,0.85)'
+                        : 'rgba(201,162,75,0.85)',
+                      color: isPaused ? 'var(--ink-900)' : '#fff',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                    }}>
+                      {isActive ? `● ${t('active').toUpperCase()}` : `⏸ ${t('paused').toUpperCase()}`}
+                    </div>
+                  )}
 
                   {/* Category label badge (bottom-left) */}
                   <div style={{
@@ -341,7 +341,7 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  {session ? (
+                  {session && (
                     <div style={styles.playerNamesContainer}>
                       <span style={styles.playerNames}>
                         👤 {session.player_names.length > 0 ? session.player_names.join(' · ') : (lang === 'hi' ? 'चालू...' : lang === 'pb' ? 'ਚੱਲ ਰਿਹਾ ਹੈ...' : 'Running...')}
@@ -357,8 +357,6 @@ export default function Dashboard() {
                         </button>
                       )}
                     </div>
-                  ) : (
-                    <div style={styles.playerFallback}>{t('noActiveSession')}</div>
                   )}
 
                   <div style={styles.btnRow}>

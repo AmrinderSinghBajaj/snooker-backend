@@ -168,7 +168,12 @@ function getOutstandingWhatsAppLink(phone, playerName, allRecords, totalOutstand
     msg += `*Date: ${date}*\n`;
     dayData.records.forEach(rec => {
       const label = rec.asset_label || 'Manual Entry';
-      const foodStr = rec.food_amount > 0 ? ` + Food ₹${rec.food_amount.toFixed(0)}` : '';
+      const items = (rec.food_orders || rec.food_lines || []);
+      let itemDetails = '';
+      if (items.length > 0) {
+        itemDetails = ` [${items.map(f => `${f.quantity}x ${f.name}`).join(', ')}]`;
+      }
+      const foodStr = rec.food_amount > 0 ? ` + Food ₹${rec.food_amount.toFixed(0)}${itemDetails}` : '';
       msg += `  - ${label}: ₹${rec.pending_amount.toFixed(2)}${foodStr}\n`;
     });
     msg += `  *Subtotal for ${date}:* ₹${dayData.subtotal.toFixed(2)}\n`;
@@ -687,7 +692,7 @@ export default function Billing() {
                   className="billing-row"
                 >
                   <td style={styles.td}>
-                    <span style={styles.serial}>{r.serial_number}</span>
+                    <span style={styles.serial}>{(page - 1) * PAGE_SIZE + i + 1}</span>
                   </td>
                   <td style={styles.td}>
                     <div style={styles.playerCell}>
@@ -1110,9 +1115,22 @@ export default function Billing() {
                       <span style={{ fontFamily: 'var(--font-mono)' }}>{minutes} {lang === 'hi' ? 'मिनट' : lang === 'pb' ? 'ਮਿੰਟ' : 'min'}</span>
                     </div>
                     {(rec.food_amount > 0 || rec.time_played_minutes > 0) && (
-                      <div style={{ display: 'flex', gap: 8, marginTop: 6, fontSize: '0.75rem', color: 'var(--chalk-300)' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6, fontSize: '0.75rem', color: 'var(--chalk-300)' }}>
                         {rec.time_played_minutes > 0 && <span>{lang === 'hi' ? 'खेल' : lang === 'pb' ? 'ਖੇਡ' : 'Game'}: ₹{(rec.total_amount - rec.food_amount).toFixed(0)}</span>}
-                        {rec.food_amount > 0 && <span>{t('food')}: ₹{rec.food_amount.toFixed(0)}</span>}
+                        {rec.food_amount > 0 && (
+                          <div>
+                            <span style={{ fontWeight: 600, color: 'var(--brass-300)' }}>{t('food')}: ₹{rec.food_amount.toFixed(0)}</span>
+                            {(rec.food_orders || rec.food_lines || []).length > 0 && (
+                              <div style={{ marginTop: 2, paddingLeft: 8, borderLeft: '2px solid var(--felt-500)', color: 'var(--chalk-200)', fontSize: '0.74rem' }}>
+                                {(rec.food_orders || rec.food_lines || []).map((f, fi) => (
+                                  <div key={fi}>
+                                    • {f.quantity}× {f.name} (₹{(f.line_total || (f.unit_price * f.quantity) || 0).toFixed(0)})
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

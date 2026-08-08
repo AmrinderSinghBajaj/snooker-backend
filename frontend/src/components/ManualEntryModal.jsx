@@ -8,8 +8,8 @@ import { useTranslation } from '../utils/translations';
   entry from a previous shift, a phone booking settled in cash, etc.
   Mirrors a real session's shape so it reads identically in the table once saved.
 */
-export default function ManualEntryModal({ onClose, onSaved }) {
-  const { t } = useTranslation();
+export default function ManualEntryModal({ onClose, onSaved, defaultPaymentStatus = 'unpaid' }) {
+  const { t, lang } = useTranslation();
   const now = new Date();
   const defaultStart = new Date(now.getTime() - 30 * 60000); // 30 min ago, sensible default
 
@@ -26,7 +26,7 @@ export default function ManualEntryModal({ onClose, onSaved }) {
   const [stopTime, setStopTime] = useState(toLocalInput(now));
   const [foodAmount, setFoodAmount] = useState('0');
   const [totalAmount, setTotalAmount] = useState('');
-  const [paymentStatus, setPaymentStatus] = useState('unpaid');
+  const [paymentStatus, setPaymentStatus] = useState(defaultPaymentStatus);
   const [paidAmount, setPaidAmount] = useState('0');
   const [pendingAmount, setPendingAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('offline');

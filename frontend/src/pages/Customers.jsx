@@ -57,7 +57,6 @@ export default function Customers() {
   const [error, setError]         = useState('');
   const [search, setSearch]       = useState('');
   const [sort, setSort]           = useState('revenue'); // 'revenue' | 'sessions' | 'recent' | 'name'
-  const [view, setView]           = useState('table');    // 'grid' | 'table'
   const [page, setPage]           = useState(1);
   const PAGE_SIZE = 15;
 
@@ -180,23 +179,6 @@ export default function Customers() {
                 <button onClick={() => setSearch('')} style={styles.clearBtn}>✕</button>
               )}
             </div>
-
-            <div style={styles.viewToggle}>
-              <button
-                onClick={() => setView('grid')}
-                title="Grid view"
-                style={{ ...styles.viewBtn, ...(view === 'grid' ? styles.viewBtnActive : {}) }}
-              >
-                ⊞
-              </button>
-              <button
-                onClick={() => setView('table')}
-                title="Table view"
-                style={{ ...styles.viewBtn, ...(view === 'table' ? styles.viewBtnActive : {}) }}
-              >
-                ☰
-              </button>
-            </div>
           </div>
 
           {/* ── Result count ── */}
@@ -206,79 +188,8 @@ export default function Customers() {
             </p>
           )}
 
-          {/* ── Grid View ── */}
-          {view === 'grid' && (
-            <div style={gridStyles}>
-              {currentEntries.map((c, idx) => {
-                const rank = customers.indexOf(c) + 1; // rank is in revenue-sorted list
-                const isTop = rank <= 3 && sort === 'revenue' && !search;
-                return (
-                  <div
-                    key={c.id}
-                    className="customer-card"
-                    style={{
-                      ...cardStyles.card,
-                      ...(isTop ? cardStyles.topCard : {}),
-                      animationDelay: `${idx * 0.04}s`,
-                    }}
-                  >
-                    <div style={cardStyles.topRow}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-                          <div style={cardStyles.name}>{c.display_name}</div>
-                          {(() => {
-                            const slab = slabs.find(s => s._id === c.membership_slab_id || s.id === c.membership_slab_id);
-                            return slab ? (
-                              <span style={{ fontSize: '0.68rem', color: 'var(--brass-300)', background: 'rgba(201,162,75,0.12)', border: '1px solid rgba(201,162,75,0.25)', borderRadius: 4, padding: '1px 5px', fontWeight: 600 }}>
-                                {slab.name}
-                              </span>
-                            ) : null;
-                          })()}
-                        </div>
-                        {c.phone && <div style={{ fontSize: '0.78rem', color: 'var(--brass-300)', marginTop: 2, fontFamily: 'var(--font-mono)' }}>📞 {c.phone}</div>}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <RankBadge rank={rank} />
-                        {canDeleteCustomer && (
-                          <button
-                            style={styles.cardDeleteBtn}
-                            onClick={() => handleDeleteCustomer(c.id, c.display_name)}
-                            title="Delete player"
-                          >
-                            <TrashIcon />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    <div style={cardStyles.revenueBlock}>
-                      <div style={cardStyles.revenueLabel}>{t('lifetimeSpend')}</div>
-                      <div style={cardStyles.revenueValue}>{fmt(c.total_spent)}</div>
-                    </div>
-
-                    <div style={cardStyles.metaRow}>
-                      <div style={cardStyles.metaItem}>
-                        <div style={cardStyles.metaKey}>{lang === 'hi' ? 'सत्र' : lang === 'pb' ? 'ਸੈਸ਼ਨ' : 'Sessions'}</div>
-                        <div style={cardStyles.metaVal}>{c.sessions_played ?? 0}</div>
-                      </div>
-                      <div style={cardStyles.metaItem}>
-                        <div style={cardStyles.metaKey}>{t('lastVisit')}</div>
-                        <div style={cardStyles.metaVal}>{relativeTime(c.last_visit, lang)}</div>
-                      </div>
-                      <div style={cardStyles.metaItem}>
-                        <div style={cardStyles.metaKey}>{lang === 'hi' ? 'शामिल हुए' : lang === 'pb' ? 'ਸ਼ਾਮਲ ਹੋਏ' : 'Joined'}</div>
-                        <div style={cardStyles.metaVal}>{new Date(c.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
           {/* ── Table View ── */}
-          {view === 'table' && (
-            <div style={tableStyles.wrap}>
+          <div style={tableStyles.wrap}>
               <table style={tableStyles.table}>
                 <thead>
                   <tr>
@@ -341,7 +252,6 @@ export default function Customers() {
                 </tbody>
               </table>
             </div>
-          )}
 
           {/* Pagination Footer */}
           {totalPages > 1 && (

@@ -3,15 +3,21 @@ import { billingApi, customersApi } from '../api/endpoints';
 import { useTranslation } from '../utils/translations';
 import Modal from '../components/Modal';
 import Card from '../components/Card';
+import ManualEntryModal from '../components/ManualEntryModal';
+import { useAuth } from '../context/AuthContext';
 
 export default function PendingPayments() {
   const { t, lang } = useTranslation();
+  const { admin } = useAuth();
+  const canEditBilling = admin?.role === 'Club Owner' || admin?.role === 'superadmin' || !!admin?.permissions?.billing?.edit;
+
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [busyId, setBusyId] = useState(null);
   const [toast, setToast] = useState('');
   const [customers, setCustomers] = useState([]);
+  const [showAddModal, setShowAddModal] = useState(false);
 
   // Modals / Selected Details
   const [selectedPlayer, setSelectedPlayer] = useState(null);
@@ -226,7 +232,7 @@ export default function PendingPayments() {
         </div>
       </div>
 
-      {/* Search Bar */}
+      {/* Search Bar & Add Button */}
       <div style={styles.searchRow}>
         <input
           style={styles.searchInput}
@@ -235,6 +241,14 @@ export default function PendingPayments() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
+        {canEditBilling && (
+          <button
+            style={styles.addBtn}
+            onClick={() => setShowAddModal(true)}
+          >
+            + {lang === 'hi' ? 'लंबित बिल जोड़ें' : lang === 'pb' ? 'ਬਕਾਇਆ ਬਿੱਲ ਜੋੜੋ' : 'Add Pending Entry'}
+          </button>
+        )}
       </div>
 
       {/* Debtors List */}
@@ -331,9 +345,22 @@ export default function PendingPayments() {
                         <span style={{ fontFamily: 'var(--font-mono)' }}>{minutes} min</span>
                       </div>
                       {(rec.food_amount > 0 || rec.time_played_minutes > 0) && (
-                        <div style={{ display: 'flex', gap: 8, marginTop: 6, fontSize: '0.75rem', color: 'var(--chalk-300)' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6, fontSize: '0.75rem', color: 'var(--chalk-300)' }}>
                           {rec.time_played_minutes > 0 && <span>Game: ₹{(rec.total_amount - rec.food_amount).toFixed(0)}</span>}
-                          {rec.food_amount > 0 && <span>Food: ₹{rec.food_amount.toFixed(0)}</span>}
+                          {rec.food_amount > 0 && (
+                            <div>
+                              <span style={{ fontWeight: 600, color: 'var(--brass-300)' }}>Food: ₹{rec.food_amount.toFixed(0)}</span>
+                              {(rec.food_orders || rec.food_lines || []).length > 0 && (
+                                <div style={{ marginTop: 2, paddingLeft: 8, borderLeft: '2px solid var(--felt-500)', color: 'var(--chalk-200)', fontSize: '0.74rem' }}>
+                                  {(rec.food_orders || rec.food_lines || []).map((f, fi) => (
+                                    <div key={fi}>
+                                      • {f.quantity}× {f.name} (₹{(f.line_total || (f.unit_price * f.quantity) || 0).toFixed(0)})
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -486,6 +513,18 @@ export default function PendingPayments() {
 
 
 
+      {showAddModal && (
+        <ManualEntryModal
+          defaultPaymentStatus="unpaid"
+          onClose={() => setShowAddModal(false)}
+          onSaved={() => {
+            setShowAddModal(false);
+            setToast(lang === 'hi' ? 'लंबित बिल सफलतापूर्वक जोड़ा गया!' : lang === 'pb' ? 'ਬਕਾਇਆ ਬਿੱਲ ਸਫਲਤਾਪੂਰਵਕ ਜੋੜਿਆ ਗਿਆ!' : 'Pending bill added successfully!');
+            loadRecords();
+          }}
+        />
+      )}
+
       {toast && <div style={styles.toast}>{toast}</div>}
     </div>
   );
@@ -553,7 +592,12 @@ function getOutstandingWhatsAppLink(phone, playerName, allRecords, totalOutstand
     msg += `*Date: ${date}*\n`;
     dayData.records.forEach(rec => {
       const label = rec.asset_label || 'Manual Entry';
-      const foodStr = rec.food_amount > 0 ? ` + Food ₹${rec.food_amount.toFixed(0)}` : '';
+      const items = (rec.food_orders || rec.food_lines || []);
+      let itemDetails = '';
+      if (items.length > 0) {
+        itemDetails = ` [${items.map(f => `${f.quantity}x ${f.name}`).join(', ')}]`;
+      }
+      const foodStr = rec.food_amount > 0 ? ` + Food ₹${rec.food_amount.toFixed(0)}${itemDetails}` : '';
       msg += `  - ${label}: ₹${rec.pending_amount.toFixed(2)}${foodStr}\n`;
     });
     msg += `  *Subtotal for ${date}:* ₹${dayData.subtotal.toFixed(2)}\n`;
@@ -632,6 +676,20 @@ const styles = {
     flex: 1,
     maxWidth: 320,
     outline: 'none',
+  },
+  addBtn: {
+    background: 'var(--brass-500)',
+    color: 'var(--ink-900)',
+    border: 'none',
+    borderRadius: 'var(--radius-sm)',
+    padding: '10px 18px',
+    fontWeight: 700,
+    fontSize: '0.9rem',
+    cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    transition: 'all 0.15s ease',
   },
   checkbox: {
     cursor: 'pointer',
