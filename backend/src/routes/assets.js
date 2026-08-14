@@ -196,7 +196,7 @@ router.post('/:id/start', requireAuth, requirePermission('tables', 'edit'), asyn
       return res.status(400).json({ detail: 'This table/device already has an active game' });
     }
 
-    const { player_names, start_time } = req.body;
+    const { player_names, start_time, client_now } = req.body;
     let players = [];
     if (player_names !== undefined && player_names !== null) {
       if (!Array.isArray(player_names) || player_names.length > 6) {
@@ -212,10 +212,20 @@ router.post('/:id/start', requireAuth, requirePermission('tables', 'edit'), asyn
 
     let startTime = new Date();
     if (start_time) {
-      const parsedTime = new Date(start_time);
+      let parsedTime = new Date(start_time);
       if (isNaN(parsedTime.getTime())) {
         return res.status(422).json({ detail: 'Invalid start_time format' });
       }
+
+      // Calculate and apply clock drift adjustment if client_now is provided
+      if (client_now) {
+        const clientNowTime = new Date(client_now);
+        if (!isNaN(clientNowTime.getTime())) {
+          const drift = Date.now() - clientNowTime.getTime();
+          parsedTime = new Date(parsedTime.getTime() + drift);
+        }
+      }
+
       // Add 1 minute tolerance for clock drifts between server and client
       if (parsedTime > new Date(Date.now() + 60 * 1000)) {
         return res.status(422).json({ detail: 'Start time cannot be in the future' });
