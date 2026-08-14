@@ -11,7 +11,7 @@ import { billingApi, customersApi, membershipsApi } from '../api/endpoints';
     4. Done -> moves record to Billing Section
     5. Mark Paid, or Unpaid with paid/pending amounts
 */
-export default function CheckoutModal({ session, onClose, onCompleted }) {
+export default function CheckoutModal({ session, onClose, onCompleted, onSessionUpdated }) {
   const [step, setStep] = useState('stop'); // stop -> review -> done
   const [stopResult, setStopResult] = useState(null);
   const [players, setPlayers] = useState([{ name: '', amount: '' }]);
@@ -98,6 +98,14 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
         }]);
       }
       setStep('review');
+      const elapsed = new Date(res.data.stop_time).getTime() - new Date(res.data.start_time).getTime() - (session.paused_duration_ms || 0);
+      const updated = {
+        ...session,
+        status: 'stopped',
+        start_time: res.data.start_time,
+        elapsed_ms: Math.max(0, elapsed)
+      };
+      if (onSessionUpdated) onSessionUpdated(updated);
     } catch (err) {
       setError(err.response?.data?.detail || 'Could not stop the game.');
     } finally {
@@ -136,6 +144,14 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
       setStopResult(res.data);
       setPlayers(autoSplitEqually(players, res.data.total_amount));
       setIsEditingTime(false);
+      const elapsed = new Date(res.data.stop_time).getTime() - new Date(res.data.start_time).getTime() - (session.paused_duration_ms || 0);
+      const updated = {
+        ...session,
+        status: 'stopped',
+        start_time: res.data.start_time,
+        elapsed_ms: Math.max(0, elapsed)
+      };
+      if (onSessionUpdated) onSessionUpdated(updated);
     } catch (err) {
       setError(err.response?.data?.detail || 'Could not adjust stop time.');
     } finally {
@@ -214,7 +230,16 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
     if (step === 'review' && stopResult) {
       setBusy(true);
       try {
-        await billingApi.cancelStop(session.session_id);
+        const res = await billingApi.cancelStop(session.session_id);
+        if (res.data.session) {
+          if (onSessionUpdated) onSessionUpdated(res.data.session);
+        } else {
+          const updated = {
+            ...session,
+            status: res.data.status || 'running',
+          };
+          if (onSessionUpdated) onSessionUpdated(updated);
+        }
       } catch (err) {
         console.error('Could not cancel stop:', err);
       } finally {
@@ -227,6 +252,17 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
   const sumOfSplits = players.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
   const splitDiff = stopResult ? Math.abs(sumOfSplits - stopResult.total_amount) : 0;
   const isSplitValid = stopResult ? (splitDiff < 0.1) : false;
+
+  let displayMins = 0;
+  let displaySecs = 0;
+  if (stopResult?.stop_time && stopResult?.start_time) {
+    const start = new Date(stopResult.start_time).getTime();
+    const stop = new Date(stopResult.stop_time).getTime();
+    const elapsedMs = Math.max(0, stop - start - (session.paused_duration_ms || 0));
+    const totalSeconds = Math.floor(elapsedMs / 1000);
+    displayMins = Math.floor(totalSeconds / 60);
+    displaySecs = totalSeconds % 60;
+  }
 
   return (
     <Modal title={`Checkout — ${session.asset_label}`} onClose={handleClose} width={480}>
@@ -349,15 +385,17 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
             </div>
           ) : (
             <div>
-              <div style={styles.summaryRow}>
-                <span>Time played</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ ...styles.summaryRow, alignItems: 'center', marginBottom: 12 }}>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontWeight: 500 }}>Time played</span>
                   {stopResult.start_time && stopResult.stop_time && (
-                    <span style={{ fontSize: '0.8rem', color: 'var(--chalk-400)' }}>
-                      ({new Date(stopResult.start_time).toLocaleTimeString()} → {new Date(stopResult.stop_time).toLocaleTimeString()})
+                    <span style={{ fontSize: '0.78rem', color: 'var(--chalk-400)', marginTop: 2 }}>
+                      {new Date(stopResult.start_time).toLocaleTimeString()} → {new Date(stopResult.stop_time).toLocaleTimeString()}
                     </span>
                   )}
-                  <strong>{stopResult.minutes_played} mins</strong>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <strong style={{ fontSize: '0.98rem', whiteSpace: 'nowrap' }}>{displayMins}m {displaySecs}s</strong>
                   <button
                     type="button"
                     onClick={handleStartEditTime}

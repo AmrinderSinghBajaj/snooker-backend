@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
   Pure client-side ticking clock derived from the session's start_time
   (server-issued), so it stays accurate even if the tab was inactive.
 */
-export default function LiveTimer({ elapsedMs, paused, startTime, pausedAt, pausedDurationMs }) {
+export default function LiveTimer({ elapsedMs, paused, startTime, pausedAt, pausedDurationMs, stopped }) {
   const [offset, setOffset] = useState(0);
 
   useEffect(() => {
@@ -20,6 +20,7 @@ export default function LiveTimer({ elapsedMs, paused, startTime, pausedAt, paus
   }, [elapsedMs, startTime, pausedDurationMs]);
 
   const calculateElapsed = useCallback(() => {
+    if (stopped) return elapsedMs || 0;
     if (!startTime) return elapsedMs || 0;
     const start = new Date(startTime).getTime();
     if (!Number.isFinite(start)) return 0;
@@ -36,7 +37,7 @@ export default function LiveTimer({ elapsedMs, paused, startTime, pausedAt, paus
     }
 
     return Math.max(0, baseElapsed - pausedDuration);
-  }, [elapsedMs, startTime, pausedAt, pausedDurationMs, offset]);
+  }, [elapsedMs, startTime, pausedAt, pausedDurationMs, offset, stopped]);
 
   const [elapsed, setElapsed] = useState(calculateElapsed);
 
@@ -45,12 +46,12 @@ export default function LiveTimer({ elapsedMs, paused, startTime, pausedAt, paus
   }, [calculateElapsed]);
 
   useEffect(() => {
-    if (paused) return undefined;
+    if (paused || stopped) return undefined;
     const interval = setInterval(() => {
       setElapsed(calculateElapsed());
     }, 1000);
     return () => clearInterval(interval);
-  }, [paused, calculateElapsed]);
+  }, [paused, stopped, calculateElapsed]);
 
   const totalSeconds = Math.floor(elapsed / 1000);
   const hours = Math.floor(totalSeconds / 3600);

@@ -296,6 +296,7 @@ export default function Dashboard() {
                       <LiveTimer
                         elapsedMs={session.elapsed_ms}
                         paused={session.status === 'paused'}
+                        stopped={session.status === 'stopped'}
                         startTime={session.start_time}
                         pausedAt={session.paused_at}
                         pausedDurationMs={session.paused_duration_ms}
@@ -428,6 +429,7 @@ export default function Dashboard() {
           session={checkoutSession}
           onClose={() => setCheckoutSession(null)}
           onCompleted={(sessionId) => handleCheckoutCompleted(sessionId)}
+          onSessionUpdated={updateSessionInState}
         />
       )}
 

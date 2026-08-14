@@ -5,7 +5,7 @@ import Customer from '../models/Customer.js';
 import WalletTransaction from '../models/WalletTransaction.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/permission.js';
-import { serializeBillingRecord, serializeSessionDetail } from '../utils/serializers.js';
+import { serializeBillingRecord, serializeSessionDetail, serializeActiveSession } from '../utils/serializers.js';
 import { getOrCreateCustomer } from '../utils/customerHelper.js';
 import { nextSerialNumber } from '../utils/serial.js';
 import { getEffectiveElapsedMs } from '../utils/time.js';
@@ -90,6 +90,12 @@ router.post('/:sessionId/cancel-stop', requireAuth, requirePermission('billing',
     const asset = session.assetId ? await Asset.findOne({ _id: session.assetId, clubId: req.admin.clubId }) : null;
 
     // Revert status, pausedAt and clear stop-related fields
+    if (session.preStoppedStatus === 'running' && session.stopTime) {
+      const now = new Date();
+      const pausedFor = now.getTime() - new Date(session.stopTime).getTime();
+      session.pausedDurationMs = Number(session.pausedDurationMs || 0) + pausedFor;
+    }
+
     session.status = session.preStoppedStatus || 'running';
     session.pausedAt = session.preStoppedPausedAt || null;
     session.stopTime = null;
@@ -105,7 +111,11 @@ router.post('/:sessionId/cancel-stop', requireAuth, requirePermission('billing',
     }
     await session.save();
 
-    return res.json({ ok: true, status: session.status });
+    return res.json({
+      ok: true,
+      status: session.status,
+      session: asset ? serializeActiveSession(session, asset) : null
+    });
   } catch (err) {
     console.error('POST /billing/:id/cancel-stop', err);
     return res.status(500).json({ detail: 'Internal server error' });
