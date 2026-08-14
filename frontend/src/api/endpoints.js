@@ -42,6 +42,7 @@ export const billingApi = {
     api.post(`/billing/${sessionId}/unpaid`, { paid_amount: paidAmount, pending_amount: pendingAmount }),
   detail: (sessionId) => api.get(`/billing/${sessionId}/detail`),
   edit: (sessionId, payload) => api.put(`/billing/${sessionId}/edit`, payload),
+  adjustStopTime: (sessionId, stopTime) => api.post(`/billing/${sessionId}/adjust-time`, { stop_time: stopTime }),
   createManualEntry: (payload) => api.post('/billing/manual-entry', payload),
   remove: (sessionId) => api.delete(`/billing/${sessionId}`),
   settleOutstanding: (payload) => api.post('/billing/outstanding/settle', payload),

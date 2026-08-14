@@ -16,8 +16,10 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
   const [stopResult, setStopResult] = useState(null);
   const [players, setPlayers] = useState([{ name: '', amount: '' }]);
   const [customers, setCustomers] = useState([]);
-  const [detail, setDetail] = useState(null);
-  const [showDetail, setShowDetail] = useState(false);
+  const [isEditingTime, setIsEditingTime] = useState(false);
+  const [editMins, setEditMins] = useState(0);
+  const [editSecs, setEditSecs] = useState(0);
+  const [adjusting, setAdjusting] = useState(false);
   const [paymentChoice, setPaymentChoice] = useState(null); // 'paid' | 'unpaid'
   const [paidAmount, setPaidAmount] = useState('');
   const [pendingAmount, setPendingAmount] = useState('');
@@ -103,14 +105,47 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
     }
   };
 
-  const handleViewDetail = async () => {
+  const handleStartEditTime = () => {
+    if (!stopResult?.stop_time || !stopResult?.start_time) return;
+    const start = new Date(stopResult.start_time).getTime();
+    const stop = new Date(stopResult.stop_time).getTime();
+    const elapsedMs = Math.max(0, stop - start - (session.paused_duration_ms || 0));
+    const totalSeconds = Math.floor(elapsedMs / 1000);
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    setEditMins(mins);
+    setEditSecs(secs);
+    setIsEditingTime(true);
+    setError('');
+  };
+
+  const handleSaveAdjustedTime = async (customDateObj) => {
+    setAdjusting(true);
+    setError('');
     try {
-      const res = await billingApi.detail(session.session_id);
-      setDetail(res.data);
-      setShowDetail(true);
-    } catch {
-      setError('Could not load details.');
+      let targetDate;
+      if (customDateObj) {
+        targetDate = customDateObj;
+      } else {
+        const newElapsedMs = (editMins * 60 + editSecs) * 1000;
+        const newStopMs = new Date(stopResult.start_time).getTime() + (session.paused_duration_ms || 0) + newElapsedMs;
+        targetDate = new Date(newStopMs);
+      }
+
+      const res = await billingApi.adjustStopTime(session.session_id, targetDate.toISOString());
+      setStopResult(res.data);
+      setPlayers(autoSplitEqually(players, res.data.total_amount));
+      setIsEditingTime(false);
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Could not adjust stop time.');
+    } finally {
+      setAdjusting(false);
     }
+  };
+
+  const handlePresetClick = (minutes) => {
+    setEditMins(minutes);
+    setEditSecs(0);
   };
 
   const handleDone = async () => {
@@ -207,137 +242,250 @@ export default function CheckoutModal({ session, onClose, onCompleted }) {
 
       {step === 'review' && stopResult && (
         <div>
-          <div style={styles.summaryRow}>
-            <span>Time played</span>
-            <strong>{stopResult.minutes_played} mins</strong>
-          </div>
-          <div style={styles.summaryRow}>
-            <span>Time charge</span>
-            <strong>₹{stopResult.time_amount.toFixed(2)}</strong>
-          </div>
-          <div style={styles.summaryRow}>
-            <span>Food &amp; drink</span>
-            <strong>₹{stopResult.food_amount.toFixed(2)}</strong>
-          </div>
-          <div style={{ ...styles.summaryRow, ...styles.totalRow }}>
-            <span>Total</span>
-            <strong>₹{stopResult.total_amount.toFixed(2)}</strong>
-          </div>
+          {isEditingTime ? (
+            <div>
+              <p style={styles.text}>Adjust the stopped time for this session. The bill will be recalculated automatically.</p>
+              
+              <div style={styles.clockCard}>
+                {/* Quick Presets */}
+                <div style={styles.presetGrid}>
+                  {[
+                    { label: '3min', mins: 3 },
+                    { label: '5min', mins: 5 },
+                    { label: '10min', mins: 10 },
+                    { label: '15min', mins: 15 },
+                  ].map((p) => (
+                    <button
+                      key={p.mins}
+                      type="button"
+                      style={{
+                        ...styles.presetBtn,
+                        ...(adjusting ? { opacity: 0.5, cursor: 'not-allowed' } : {}),
+                      }}
+                      disabled={adjusting}
+                      onClick={() => handlePresetClick(p.mins)}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
 
-          <h4 style={styles.subheading}>Players &amp; Billing Allocation</h4>
-          
-          <div style={{ maxHeight: '240px', overflowX: 'hidden', overflowY: 'auto', marginBottom: 12, padding: '4px 6px' }}>
-            {players.map((player, idx) => (
-              <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12, padding: '10px 8px', background: 'var(--felt-800)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--felt-600)' }}>
-                <div style={styles.playerInputRow}>
-                  <input
-                    style={styles.playerNameInput}
-                    placeholder={`Player Name ${idx + 1}`}
-                    value={player.name}
-                    onChange={(e) => updatePlayerField(idx, 'name', e.target.value)}
-                    maxLength={25}
-                    list="checkout-customer-suggestions"
-                    autoFocus={idx === players.length - 1 && idx > 0}
-                  />
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <span style={{ color: 'var(--chalk-400)', fontSize: '0.85rem' }}>₹</span>
+                {/* Duration Editor Inputs */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, width: '100%', margin: '10px 0' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                    <label style={{ fontSize: '0.78rem', color: 'var(--chalk-400)', fontWeight: 600 }}>MINUTES</label>
                     <input
-                      style={styles.playerAmountInput}
                       type="number"
-                      placeholder="Amount"
-                      value={player.amount}
-                      onChange={(e) => updatePlayerField(idx, 'amount', e.target.value)}
-                      disabled={players.length === 1}
+                      min="0"
+                      value={editMins}
+                      onChange={(e) => setEditMins(Math.max(0, parseInt(e.target.value) || 0))}
+                      style={{
+                        background: 'rgba(11, 43, 34, 0.85)',
+                        border: '1.5px solid rgba(47, 158, 99, 0.5)',
+                        borderRadius: '12px',
+                        color: '#fff',
+                        padding: '10px 14px',
+                        fontSize: '1.8rem',
+                        fontWeight: 'bold',
+                        textAlign: 'center',
+                        width: '90px',
+                        boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.5)',
+                        fontFamily: 'var(--font-mono)'
+                      }}
+                      disabled={adjusting}
                     />
                   </div>
-                  {players.length > 1 && (
-                    <button type="button" onClick={() => removePlayerRow(idx)} style={styles.removePlayerBtn}>
-                      ×
-                    </button>
+                  <span style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--brass-300)', marginTop: 20 }}>:</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                    <label style={{ fontSize: '0.78rem', color: 'var(--chalk-400)', fontWeight: 600 }}>SECONDS</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="59"
+                      value={editSecs}
+                      onChange={(e) => setEditSecs(Math.min(59, Math.max(0, parseInt(e.target.value) || 0)))}
+                      style={{
+                        background: 'rgba(11, 43, 34, 0.85)',
+                        border: '1.5px solid rgba(47, 158, 99, 0.5)',
+                        borderRadius: '12px',
+                        color: '#fff',
+                        padding: '10px 14px',
+                        fontSize: '1.8rem',
+                        fontWeight: 'bold',
+                        textAlign: 'center',
+                        width: '90px',
+                        boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.5)',
+                        fontFamily: 'var(--font-mono)'
+                      }}
+                      disabled={adjusting}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {error && <div style={styles.error}>{error}</div>}
+
+              <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+                <button
+                  type="button"
+                  style={styles.cancelStopBtn}
+                  onClick={() => setIsEditingTime(false)}
+                  disabled={adjusting}
+                >
+                  Cancel
+                </button>
+                <button 
+                  style={{ 
+                    ...styles.doneBtn, 
+                    marginTop: 0, 
+                    flex: 1.2,
+                  }} 
+                  onClick={() => handleSaveAdjustedTime()} 
+                  disabled={adjusting}
+                >
+                  {adjusting ? 'Saving…' : 'Save Changes'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <div style={styles.summaryRow}>
+                <span>Time played</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {stopResult.start_time && stopResult.stop_time && (
+                    <span style={{ fontSize: '0.8rem', color: 'var(--chalk-400)' }}>
+                      ({new Date(stopResult.start_time).toLocaleTimeString()} → {new Date(stopResult.stop_time).toLocaleTimeString()})
+                    </span>
+                  )}
+                  <strong>{stopResult.minutes_played} mins</strong>
+                  <button
+                    type="button"
+                    onClick={handleStartEditTime}
+                    style={{
+                      background: 'rgba(201, 162, 75, 0.15)',
+                      border: '1px solid var(--brass-500)',
+                      borderRadius: '4px',
+                      color: 'var(--brass-300)',
+                      cursor: 'pointer',
+                      padding: '2px 6px',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 3,
+                    }}
+                  >
+                    ✏️ Edit
+                  </button>
+                </div>
+              </div>
+              <div style={styles.summaryRow}>
+                <span>Time charge</span>
+                <strong>₹{stopResult.time_amount.toFixed(2)}</strong>
+              </div>
+              <div style={styles.summaryRow}>
+                <span>Food &amp; drink</span>
+                <strong>₹{stopResult.food_amount.toFixed(2)}</strong>
+              </div>
+              <div style={{ ...styles.summaryRow, ...styles.totalRow }}>
+                <span>Total</span>
+                <strong>₹{stopResult.total_amount.toFixed(2)}</strong>
+              </div>
+
+              <h4 style={styles.subheading}>Players &amp; Billing Allocation</h4>
+              
+              <div style={{ maxHeight: '240px', overflowX: 'hidden', overflowY: 'auto', marginBottom: 12, padding: '4px 6px' }}>
+                {players.map((player, idx) => (
+                  <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12, padding: '10px 8px', background: 'var(--felt-800)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--felt-600)' }}>
+                    <div style={styles.playerInputRow}>
+                      <input
+                        style={styles.playerNameInput}
+                        placeholder={`Player Name ${idx + 1}`}
+                        value={player.name}
+                        onChange={(e) => updatePlayerField(idx, 'name', e.target.value)}
+                        maxLength={25}
+                        list="checkout-customer-suggestions"
+                        autoFocus={idx === players.length - 1 && idx > 0}
+                      />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span style={{ color: 'var(--chalk-400)', fontSize: '0.85rem' }}>₹</span>
+                        <input
+                          style={styles.playerAmountInput}
+                          type="number"
+                          placeholder="Amount"
+                          value={player.amount}
+                          onChange={(e) => updatePlayerField(idx, 'amount', e.target.value)}
+                          disabled={players.length === 1}
+                        />
+                      </div>
+                      {players.length > 1 && (
+                        <button type="button" onClick={() => removePlayerRow(idx)} style={styles.removePlayerBtn}>
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <datalist id="checkout-customer-suggestions">
+                {customers.map((c) => (
+                  <option key={c.id} value={c.display_name} />
+                ))}
+              </datalist>
+
+              {players.length < 6 && (
+                <button type="button" onClick={addPlayerRow} style={styles.addPlayerBtn}>
+                  + Add Player
+                </button>
+              )}
+
+              {players.length > 1 && (
+                <div style={{
+                  ...styles.allocationStatus,
+                  color: isSplitValid ? '#4FA663' : 'var(--orange-warn)',
+                  borderColor: isSplitValid ? 'rgba(79,166,99,0.3)' : 'rgba(201,162,75,0.3)',
+                  background: isSplitValid ? 'rgba(79,166,99,0.06)' : 'rgba(201,162,75,0.06)'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem', fontWeight: 600 }}>
+                    <span>Total Allocated:</span>
+                    <span>₹{sumOfSplits.toFixed(2)} / ₹{stopResult.total_amount.toFixed(2)}</span>
+                  </div>
+                  {!isSplitValid && (
+                    <div style={{ fontSize: '0.78rem', marginTop: 4, fontWeight: 500 }}>
+                      {`⚠️ Sum of splits must equal total bill. Diff: ₹${(stopResult.total_amount - sumOfSplits).toFixed(2)}`}
+                    </div>
                   )}
                 </div>
-              </div>
-            ))}
-          </div>
-
-          <datalist id="checkout-customer-suggestions">
-            {customers.map((c) => (
-              <option key={c.id} value={c.display_name} />
-            ))}
-          </datalist>
-
-          {players.length < 6 && (
-            <button type="button" onClick={addPlayerRow} style={styles.addPlayerBtn}>
-              + Add Player
-            </button>
-          )}
-
-          {players.length > 1 && (
-            <div style={{
-              ...styles.allocationStatus,
-              color: isSplitValid ? '#4FA663' : 'var(--orange-warn)',
-              borderColor: isSplitValid ? 'rgba(79,166,99,0.3)' : 'rgba(201,162,75,0.3)',
-              background: isSplitValid ? 'rgba(79,166,99,0.06)' : 'rgba(201,162,75,0.06)'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem', fontWeight: 600 }}>
-                <span>Total Allocated:</span>
-                <span>₹{sumOfSplits.toFixed(2)} / ₹{stopResult.total_amount.toFixed(2)}</span>
-              </div>
-              {!isSplitValid && (
-                <div style={{ fontSize: '0.78rem', marginTop: 4, fontWeight: 500 }}>
-                  {`⚠️ Sum of splits must equal total bill. Diff: ₹${(stopResult.total_amount - sumOfSplits).toFixed(2)}`}
-                </div>
               )}
+
+              {error && <div style={styles.error}>{error}</div>}
+
+              <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+                <button
+                  type="button"
+                  style={styles.cancelStopBtn}
+                  onClick={handleClose}
+                  disabled={busy}
+                >
+                  ◀ Resume Game
+                </button>
+                <button 
+                  style={{ 
+                    ...styles.doneBtn, 
+                    marginTop: 0, 
+                    flex: 1.2,
+                    opacity: isSplitValid ? 1 : 0.4,
+                    cursor: isSplitValid ? 'pointer' : 'not-allowed'
+                  }} 
+                  onClick={handleDone} 
+                  disabled={busy || !isSplitValid}
+                >
+                  {busy ? 'Finalizing…' : 'Done — move to Billing'}
+                </button>
+              </div>
             </div>
           )}
-
-          <button type="button" onClick={handleViewDetail} style={styles.detailBtn}>
-            See Detail
-          </button>
-
-          {showDetail && detail && (
-            <div style={styles.detailBox}>
-              <p style={styles.detailLine}>
-                {new Date(detail.start_time).toLocaleTimeString()} →{' '}
-                {new Date(detail.stop_time).toLocaleTimeString()}
-              </p>
-              {detail.food_lines.length > 0 && (
-                <ul style={styles.foodList}>
-                  {detail.food_lines.map((line, i) => (
-                    <li key={i}>
-                      {line.quantity} × {line.name} {line.ordered_by ? `(ordered by ${line.ordered_by})` : ''} — ₹{line.line_total.toFixed(2)}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
-
-          {error && <div style={styles.error}>{error}</div>}
-
-          <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
-            <button
-              type="button"
-              style={styles.cancelStopBtn}
-              onClick={handleClose}
-              disabled={busy}
-            >
-              ◀ Resume Game
-            </button>
-            <button 
-              style={{ 
-                ...styles.doneBtn, 
-                marginTop: 0, 
-                flex: 1.2,
-                opacity: isSplitValid ? 1 : 0.4,
-                cursor: isSplitValid ? 'pointer' : 'not-allowed'
-              }} 
-              onClick={handleDone} 
-              disabled={busy || !isSplitValid}
-            >
-              {busy ? 'Finalizing…' : 'Done — move to Billing'}
-            </button>
-          </div>
         </div>
       )}
 
@@ -613,5 +761,36 @@ const styles = {
     padding: '10px 12px',
     fontSize: '0.85rem',
     marginBottom: 14,
+  },
+  clockCard: {
+    background: 'rgba(15, 55, 45, 0.45)',
+    border: '1px solid rgba(27, 92, 76, 0.5)',
+    borderRadius: 'var(--radius-md)',
+    padding: '16px',
+    marginBottom: 20,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    width: '100%',
+    boxSizing: 'border-box',
+  },
+  presetGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(4, 1fr)',
+    gap: 6,
+    width: '100%',
+    marginBottom: 14,
+  },
+  presetBtn: {
+    background: 'rgba(255, 255, 255, 0.05)',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    borderRadius: '6px',
+    color: 'var(--chalk-200)',
+    padding: '6px 2px',
+    fontSize: '0.76rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+    textAlign: 'center',
+    transition: 'all 0.15s ease',
   },
 };

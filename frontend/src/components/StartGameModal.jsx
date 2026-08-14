@@ -4,7 +4,7 @@ import { customersApi } from '../api/endpoints';
 import { useTranslation } from '../utils/translations';
 
 // ── iOS Cupertino Style Wheel Column ──────────────────────────────────────
-function IOSWheelColumn({ options, value, onChange, width = '70px' }) {
+export function IOSWheelColumn({ options, value, onChange, width = '70px' }) {
   const containerRef = useRef(null);
   const currentIndex = options.indexOf(value);
   const isUserScrolling = useRef(false);
@@ -62,7 +62,7 @@ function IOSWheelColumn({ options, value, onChange, width = '70px' }) {
 }
 
 // ── iOS Cupertino Time Picker Container ────────────────────────────────────
-function IOSPicker({ hour12, minute, ampm, onChangeHour, onChangeMinute, onChangeAmPm }) {
+export function IOSPicker({ hour12, minute, ampm, onChangeHour, onChangeMinute, onChangeAmPm }) {
   const hours = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'));
   const minutes = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
   const periods = ['AM', 'PM'];

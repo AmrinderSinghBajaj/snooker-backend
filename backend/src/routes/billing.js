@@ -67,6 +67,8 @@ router.post('/:sessionId/stop', requireAuth, requirePermission('billing', 'edit'
       time_amount:   session.timeAmount,
       food_amount:   session.foodAmount ?? 0,
       total_amount:  session.totalAmount,
+      start_time:    session.startTime,
+      stop_time:     session.stopTime,
     });
   } catch (err) {
     console.error('POST /billing/:id/stop', err);
@@ -106,6 +108,55 @@ router.post('/:sessionId/cancel-stop', requireAuth, requirePermission('billing',
     return res.json({ ok: true, status: session.status });
   } catch (err) {
     console.error('POST /billing/:id/cancel-stop', err);
+    return res.status(500).json({ detail: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /billing/:sessionId/adjust-time
+ */
+router.post('/:sessionId/adjust-time', requireAuth, requirePermission('billing', 'edit'), async (req, res) => {
+  try {
+    const session = await GameSession.findOne({ _id: req.params.sessionId, clubId: req.admin.clubId });
+    if (!session) return res.status(404).json({ detail: 'Session not found' });
+    if (session.status !== 'stopped') {
+      return res.status(400).json({ detail: 'Session is not currently stopped' });
+    }
+
+    const { stop_time } = req.body;
+    if (!stop_time) {
+      return res.status(400).json({ detail: 'Stop time is required' });
+    }
+
+    const newStop = new Date(stop_time);
+    if (isNaN(newStop.getTime())) {
+      return res.status(400).json({ detail: 'Invalid stop time format' });
+    }
+
+    if (newStop <= new Date(session.startTime)) {
+      return res.status(400).json({ detail: 'Stop time must be after start time' });
+    }
+
+    const asset = session.assetId ? await Asset.findOne({ _id: session.assetId, clubId: req.admin.clubId }) : null;
+
+    session.stopTime = newStop;
+    const { minutes, amount } = computeTimeAmount(session, asset);
+    session.timeAmount = amount;
+    session.totalAmount = Math.round((amount + (session.foodAmount ?? 0)) * 100) / 100;
+
+    await session.save();
+
+    return res.json({
+      session_id:    session._id.toString(),
+      minutes_played: minutes,
+      time_amount:   session.timeAmount,
+      food_amount:   session.foodAmount ?? 0,
+      total_amount:  session.totalAmount,
+      start_time:    session.startTime,
+      stop_time:     session.stopTime,
+    });
+  } catch (err) {
+    console.error('POST /billing/:id/adjust-time', err);
     return res.status(500).json({ detail: 'Internal server error' });
   }
 });
